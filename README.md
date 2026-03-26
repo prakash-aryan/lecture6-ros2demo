@@ -10,71 +10,55 @@
 
 ```mermaid
 flowchart LR
-    CM[/circle_motion\] -->|/cmd_vel\nTwist| DD[turtlebot3_diff_drive]
-    DD -->|/odom\nOdometry| OM[/odom_monitor\]
-    JS[turtlebot3_joint_state] -->|/joint_states| RSP[robot_state_publisher]
-    IMU[turtlebot3_imu] -.->|/imu| DD
-    LS[turtlebot3_laserscan] -.->|/scan| DD
+    subgraph Gazebo Simulation
+        IMU[/turtlebot3_imu]
+        JS[/turtlebot3_joint_state]
+        DD[/turtlebot3_diff_drive]
+        LS[/turtlebot3_laserscan]
+        GZ[/gazebo]
+    end
+
+    subgraph Student Nodes
+        CM[/circle_motion]
+        OM[/odom_monitor]
+    end
+
+    RSP[/robot_state_publisher]
+
+    CM -- /cmd_vel --> DD
+    DD -- /odom --> OM
+    JS -- /joint_states --> RSP
 ```
 
-## Package Structure
+## Project Structure
 
 ```
-src/student_robotics/
-├── launch/
-│   └── robot.launch.py        # Launch both nodes together
-├── resource/
-│   └── student_robotics        # ament resource index marker
-├── student_robotics/
-│   ├── __init__.py
-│   ├── circle_motion.py        # Velocity publisher (0.3 m/s, 0.5 rad/s, 10 Hz)
-│   └── odom_monitor.py         # Odometry subscriber (position + velocity)
-├── package.xml                 # Dependencies: rclpy, geometry_msgs, nav_msgs
-├── setup.cfg
-└── setup.py                    # Entry points: circle_motion, odom_monitor
-```
-
-## Quick Start (Solution Branch)
-
-### 1. Open in Dev Container
-
-```bash
-git clone https://github.com/prakash-aryan/lecture6-ros2demo.git
-cd lecture6-ros2demo
-git checkout solution
-code .
-```
-
-In VS Code: **F1** → "Dev Containers: Reopen in Container" — wait for build (first time ~10-15 min).
-
-`student_robotics` is built automatically by the `post-start.sh` script.
-
-### 2. Launch Gazebo (Terminal 1)
-
-```bash
-ros2 launch turtlebot3_gazebo empty_world.launch.py
-```
-
-### 3. Run Circle Motion (Terminal 2)
-
-```bash
-cd /workspace/turtlebot3_ws
-colcon build --packages-select student_robotics
-source install/setup.bash
-ros2 run student_robotics circle_motion
-```
-
-### 4. Run Odom Monitor (Terminal 3)
-
-```bash
-source /workspace/turtlebot3_ws/install/setup.bash
-ros2 run student_robotics odom_monitor
-```
-
-### 5. Or launch both at once
-
-```bash
-ros2 launch student_robotics robot.launch.py
+lecture6-ros2demo/
+├── .devcontainer/
+│   ├── Dockerfile
+│   ├── devcontainer.json
+│   ├── post-create.sh
+│   ├── post-start.sh          # Auto-builds student_robotics
+│   └── verify-setup.sh
+├── src/
+│   ├── student_robotics/       # ← Exercise package
+│   │   ├── student_robotics/
+│   │   │   ├── __init__.py
+│   │   │   ├── circle_motion.py    # Velocity publisher
+│   │   │   └── odom_monitor.py     # Odometry subscriber
+│   │   ├── launch/
+│   │   │   └── robot.launch.py
+│   │   ├── resource/
+│   │   │   └── student_robotics
+│   │   ├── package.xml
+│   │   ├── setup.py
+│   │   └── setup.cfg
+│   ├── DynamixelSDK/
+│   ├── turtlebot3/
+│   ├── turtlebot3_msgs/
+│   └── turtlebot3_simulations/
+├── screenshots/                # Solution screenshots
+└── README.md
 ```
 
 ---
@@ -83,7 +67,18 @@ ros2 launch student_robotics robot.launch.py
 
 ## (a) Package Creation & Circle Motion Publisher
 
-Created package `student_robotics` with a publisher node `circle_motion.py` that drives the TurtleBot3 in a circle:
+Created package `student_robotics` with a publisher node that drives TurtleBot3 in a circle.
+
+**Build & run:**
+
+```bash
+cd /workspace/turtlebot3_ws
+colcon build --packages-select student_robotics
+source install/setup.bash
+ros2 run student_robotics circle_motion
+```
+
+### circle_motion.py
 
 ```python
 import rclpy
@@ -106,7 +101,7 @@ class CircleMotion(Node):
         # Create publisher on /cmd_vel with QoS depth 10
         self.publisher = self.create_publisher(Twist, '/cmd_vel', 10)
 
-        # 10 Hz timer -> callback every 0.1 s
+        # 10 Hz timer → callback every 0.1 s
         self.timer = self.create_timer(0.1, self.timer_callback)
 
         self.get_logger().info(
@@ -118,7 +113,7 @@ class CircleMotion(Node):
         msg.angular.z = 0.5  # rad/s counter-clockwise
         self.publisher.publish(msg)
         self.get_logger().info(
-            f'Velocity -> linear.x={msg.linear.x:.1f}, angular.z={msg.angular.z:.1f}')
+            f'Velocity → linear.x={msg.linear.x:.1f}, angular.z={msg.angular.z:.1f}')
 
 
 def main(args=None):
@@ -140,40 +135,47 @@ if __name__ == '__main__':
     main()
 ```
 
-**Testing — Build and run:**
-
-```bash
-cd /workspace/turtlebot3_ws
-colcon build --packages-select student_robotics
-source install/setup.bash
-ros2 run student_robotics circle_motion
-```
+### Build output
 
 ```
 Starting >>> student_robotics
 Finished <<< student_robotics [2.37s]
 
 Summary: 1 package finished [56.2s]
+```
+
+### circle_motion node running
+
+```
 [INFO] [1774515473.565195389] [circle_motion]: CircleMotion started — publishing to /cmd_vel at 10 Hz
 [INFO] [1774515473.863745942] [circle_motion]: Velocity → linear.x=0.3, angular.z=0.5
 [INFO] [1774515473.969675095] [circle_motion]: Velocity → linear.x=0.3, angular.z=0.5
 [INFO] [1774515474.064554060] [circle_motion]: Velocity → linear.x=0.3, angular.z=0.5
 [INFO] [1774515474.164401815] [circle_motion]: Velocity → linear.x=0.3, angular.z=0.5
 [INFO] [1774515474.264625951] [circle_motion]: Velocity → linear.x=0.3, angular.z=0.5
-...
+[INFO] [1774515474.368877758] [circle_motion]: Velocity → linear.x=0.3, angular.z=0.5
+[INFO] [1774515474.458057746] [circle_motion]: Velocity → linear.x=0.3, angular.z=0.5
 ```
 
-**Robot moving in circles in Gazebo:**
+### Robot moving in circles in Gazebo
 
 ![Gazebo Circle Motion](screenshots/gazebo-circle-motion.png)
 
-**Why use `create_timer()`?**
+![Gazebo Circle Motion — continued](screenshots/gazebo-circle-motion-2.png)
 
-`create_timer()` ensures the publisher sends velocity commands at a fixed frequency (10 Hz) by invoking the callback at regular intervals, decoupled from the main spin loop. Without a timer, we would need manual loop management and sleep calls, which is error-prone and blocks the node from processing other callbacks like subscriptions or services.
+The blue trail shows the TurtleBot3 tracing a circular path from the constant linear (0.3 m/s) and angular (0.5 rad/s) velocity commands.
+
+### Why use `create_timer()`?
+
+`create_timer()` triggers a callback at a fixed frequency (10 Hz), ensuring the robot receives a steady stream of velocity commands. Without a timer the node would publish once and exit, whereas the timer keeps the publisher alive and publishes periodically for continuous motion control.
+
+---
 
 ## (b) Odometry Subscriber
 
-Created `odom_monitor.py` that subscribes to `/odom` and logs position (x, y) and velocities (linear.x, angular.z):
+Created `odom_monitor.py` that subscribes to `/odom` and logs the robot's position and velocities.
+
+### odom_monitor.py
 
 ```python
 import rclpy
@@ -233,7 +235,7 @@ if __name__ == '__main__':
     main()
 ```
 
-**Both nodes running — odom_monitor terminal output:**
+### Both nodes running — terminal output
 
 ```
 [INFO] [1774515499.579080843] [odom_monitor]: OdomMonitor started — listening to /odom
@@ -246,13 +248,22 @@ if __name__ == '__main__':
 [INFO] [1774515499.774530145] [odom_monitor]: Position: x=-0.47, y=0.30 | Velocity: linear.x=0.30, angular.z=0.50
 [INFO] [1774515499.807936940] [odom_monitor]: Position: x=-0.47, y=0.29 | Velocity: linear.x=0.30, angular.z=0.50
 [INFO] [1774515499.841032495] [odom_monitor]: Position: x=-0.46, y=0.28 | Velocity: linear.x=0.30, angular.z=0.50
+[INFO] [1774515499.874687245] [odom_monitor]: Position: x=-0.46, y=0.28 | Velocity: linear.x=0.30, angular.z=0.50
+[INFO] [1774515499.909097212] [odom_monitor]: Position: x=-0.45, y=0.27 | Velocity: linear.x=0.30, angular.z=0.50
+[INFO] [1774515499.943231809] [odom_monitor]: Position: x=-0.45, y=0.26 | Velocity: linear.x=0.30, angular.z=0.50
+[INFO] [1774515499.977811038] [odom_monitor]: Position: x=-0.44, y=0.25 | Velocity: linear.x=0.30, angular.z=0.50
+[INFO] [1774515500.011371073] [odom_monitor]: Position: x=-0.44, y=0.24 | Velocity: linear.x=0.30, angular.z=0.50
+[INFO] [1774515500.046069217] [odom_monitor]: Position: x=-0.43, y=0.23 | Velocity: linear.x=0.30, angular.z=0.50
 [INFO] [1774515500.080109577] [odom_monitor]: Position: x=-0.42, y=0.22 | Velocity: linear.x=0.30, angular.z=0.50
-[INFO] [1774515500.318336815] [odom_monitor]: Position: x=-0.38, y=0.17 | Velocity: linear.x=0.30, angular.z=0.51
-[INFO] [1774515500.556955352] [odom_monitor]: Position: x=-0.33, y=0.12 | Velocity: linear.x=0.30, angular.z=0.50
-[INFO] [1774515500.660003894] [odom_monitor]: Position: x=-0.30, y=0.10 | Velocity: linear.x=0.30, angular.z=0.51
+[INFO] [1774515500.114151260] [odom_monitor]: Position: x=-0.42, y=0.22 | Velocity: linear.x=0.30, angular.z=0.50
+[INFO] [1774515500.147850578] [odom_monitor]: Position: x=-0.41, y=0.21 | Velocity: linear.x=0.30, angular.z=0.50
+[INFO] [1774515500.182498278] [odom_monitor]: Position: x=-0.41, y=0.20 | Velocity: linear.x=0.30, angular.z=0.50
+[INFO] [1774515500.216836308] [odom_monitor]: Position: x=-0.40, y=0.19 | Velocity: linear.x=0.30, angular.z=0.50
 ```
 
-**`ros2 node list` showing both nodes:**
+The changing (x, y) coordinates and steady velocities confirm the robot is moving in a circle.
+
+### `ros2 node list` — both nodes active
 
 ```
 /circle_motion
@@ -265,9 +276,9 @@ if __name__ == '__main__':
 /turtlebot3_laserscan
 ```
 
-**How does pub-sub decoupling work?**
+### How does pub-sub decoupling work?
 
-In ROS 2 publish-subscribe, publishers and subscribers communicate through named topics without knowing about each other directly — the publisher writes messages to a topic, and any subscriber listening to that topic receives them independently. This means `circle_motion` can publish velocity commands to `/cmd_vel` without needing to know whether the simulation, a real robot, or nothing at all is subscribed to that topic. This decoupling allows nodes to be started, stopped, or replaced independently, making the system modular and resilient — for example, `odom_monitor` continues to receive `/odom` data from the simulation regardless of whether `circle_motion` is running.
+In ROS 2's publish-subscribe model, publishers and subscribers are completely decoupled — the publisher does not know who (or if anyone) is listening, and the subscriber does not know who is producing the data. They only share a topic name and message type, and the DDS middleware handles matching and delivery. This means nodes can be started, stopped, or replaced independently without affecting other parts of the system, making the architecture modular and fault-tolerant.
 
 ---
 
@@ -275,7 +286,9 @@ In ROS 2 publish-subscribe, publishers and subscribers communicate through named
 
 ## (a) ROS2 CLI Topic Commands
 
-**`ros2 topic list` — all active topics:**
+All commands run while TurtleBot3 Gazebo simulation, `circle_motion`, and `odom_monitor` are active.
+
+### `ros2 topic list`
 
 ```
 /clock
@@ -292,7 +305,7 @@ In ROS 2 publish-subscribe, publishers and subscribers communicate through named
 /tf_static
 ```
 
-**`ros2 topic info /cmd_vel` — publishers and subscribers:**
+### `ros2 topic info /cmd_vel`
 
 ```
 Type: geometry_msgs/msg/Twist
@@ -300,7 +313,7 @@ Publisher count: 1
 Subscription count: 1
 ```
 
-**`ros2 topic info /odom`:**
+### `ros2 topic info /odom`
 
 ```
 Type: nav_msgs/msg/Odometry
@@ -308,7 +321,7 @@ Publisher count: 1
 Subscription count: 1
 ```
 
-**`ros2 topic hz /odom` — frequency:**
+### `ros2 topic hz /odom`
 
 ```
 average rate: 29.373
@@ -319,9 +332,15 @@ average rate: 29.351
         min: 0.033s max: 0.035s std dev: 0.00047s window: 91
 average rate: 29.368
         min: 0.033s max: 0.037s std dev: 0.00056s window: 121
+average rate: 29.368
+        min: 0.033s max: 0.037s std dev: 0.00054s window: 151
+average rate: 29.370
+        min: 0.033s max: 0.037s std dev: 0.00052s window: 181
+average rate: 29.363
+        min: 0.033s max: 0.037s std dev: 0.00051s window: 211
 ```
 
-**`ros2 topic bw /odom` — bandwidth:**
+### `ros2 topic bw /odom`
 
 ```
 Subscribed to [/odom]
@@ -329,22 +348,13 @@ Subscribed to [/odom]
         Message size mean: 0.72 KB min: 0.72 KB max: 0.72 KB
 21.52 KB/s from 59 messages
         Message size mean: 0.72 KB min: 0.72 KB max: 0.72 KB
+21.35 KB/s from 88 messages
+        Message size mean: 0.72 KB min: 0.72 KB max: 0.72 KB
+21.26 KB/s from 100 messages
+        Message size mean: 0.72 KB min: 0.72 KB max: 0.72 KB
 ```
 
-**`ros2 node list` — all nodes:**
-
-```
-/circle_motion
-/gazebo
-/odom_monitor
-/robot_state_publisher
-/turtlebot3_diff_drive
-/turtlebot3_imu
-/turtlebot3_joint_state
-/turtlebot3_laserscan
-```
-
-**`ros2 node info /circle_motion`:**
+### `ros2 node info /circle_motion`
 
 ```
 /circle_motion
@@ -368,43 +378,67 @@ Subscribed to [/odom]
   Action Clients:
 ```
 
-### Answers
+### What is the `/odom` frequency? Why does frequency matter?
 
-**What is `/odom` frequency? Why does frequency matter for robot control?**
+The `/odom` topic publishes at approximately **29.4 Hz** (roughly 30 times per second), as reported by `ros2 topic hz`. Frequency matters because a higher odometry rate gives the control loop more up-to-date position data, enabling smoother and more accurate robot motion. If the frequency is too low, the robot may overshoot targets or react too slowly to changes.
 
-The `/odom` topic publishes at approximately **29.4 Hz** (~30 Hz), matching the Gazebo physics simulation rate. Frequency matters because higher update rates provide smoother, more accurate position estimates, allowing the control loop to react faster to changes. If the odometry frequency is too low, the robot may overshoot targets or oscillate because the controller is working with stale position data.
-
-**How many publishers and subscribers does `/cmd_vel` have? List them.**
+### How many publishers/subscribers does `/cmd_vel` have?
 
 `/cmd_vel` has **1 publisher** and **1 subscriber**:
-- Publisher: `/circle_motion` (our node sending Twist velocity commands)
-- Subscriber: `/turtlebot3_diff_drive` (Gazebo plugin that drives the simulated wheels)
+- **Publisher:** `/circle_motion` — our custom node publishing Twist velocity commands
+- **Subscriber:** `/turtlebot3_diff_drive` — the Gazebo differential-drive plugin that actuates the robot's wheels
 
-**What's the difference between `ros2 topic hz` and `ros2 topic bw`?**
+### Difference between `ros2 topic hz` and `ros2 topic bw`?
 
-`ros2 topic hz` measures the **message frequency** — how many messages per second arrive on a topic (e.g., 29.4 Hz for `/odom`). `ros2 topic bw` measures the **bandwidth** — the actual data throughput in KB/s (e.g., 21.3 KB/s), which depends on both the message rate and the size of each message (0.72 KB for Odometry).
-
-## (b) Visualize Communication Graph
-
-**`rqt_graph` showing node communication:**
-
-![rqt_graph](screenshots/rqt-graph.png)
-
-**What does the graph show? How are nodes connected?**
-
-The rqt_graph shows the ROS 2 computation graph — each oval is a node and each labeled arrow is a topic carrying messages between them. `/circle_motion` publishes Twist messages on `/cmd_vel` to `/turtlebot3_diff_drive`, which controls the simulated wheels and in turn publishes Odometry on `/odom`, which `/odom_monitor` subscribes to. Other connections include `/turtlebot3_joint_state` sending `/joint_states` to `/robot_state_publisher`, while `/turtlebot3_imu`, `/turtlebot3_laserscan`, and `/gazebo` are standalone sensor nodes.
-
-**What happens if you stop `circle_motion`? Does `odom_monitor` still work? Why?**
-
-If `circle_motion` is stopped, the robot stops receiving velocity commands and coasts to a halt, but `odom_monitor` continues to work and receive odometry data from `/turtlebot3_diff_drive`. This is because pub-sub is decoupled — `odom_monitor` subscribes to `/odom` independently and the Gazebo simulation keeps publishing odometry regardless of whether any velocity commands are being sent.
+`ros2 topic hz` measures the **message frequency** — how many messages per second arrive on a topic (e.g. ~29.4 Hz for `/odom`). `ros2 topic bw` measures the **bandwidth** — the total data throughput in KB/s, taking into account both frequency and message size (e.g. ~21.3 KB/s for `/odom` with 0.72 KB messages).
 
 ---
 
-## Cleanup
+## (b) Visualize Communication Graph
 
 ```bash
-# Stop all nodes with Ctrl+C, then:
-ros2 launch turtlebot3_gazebo empty_world.launch.py  # re-launch if needed
+rqt_graph
+```
+
+![rqt_graph](screenshots/rqt-graph.png)
+
+### What does the graph show?
+
+The `rqt_graph` visualizes the ROS 2 computation graph, showing all active nodes (ellipses) and the topics (labeled arrows) connecting them. Our `/circle_motion` node publishes to `/cmd_vel`, which is consumed by `/turtlebot3_diff_drive`; the diff-drive plugin then publishes `/odom`, which our `/odom_monitor` subscribes to. Other Gazebo nodes (`/turtlebot3_imu`, `/turtlebot3_joint_state`, `/turtlebot3_laserscan`) are also visible, feeding sensor data into the system.
+
+### What happens if you stop `circle_motion`? Does `odom_monitor` still work?
+
+If `circle_motion` is stopped, the robot stops moving (no more Twist commands on `/cmd_vel`), but `odom_monitor` continues to run and receive `/odom` messages — the position simply stays constant. This is because publishers and subscribers are decoupled; the subscriber does not depend on any specific publisher being alive, it only listens on the topic.
+
+---
+
+## Quick Start (Dev Container)
+
+```bash
+# Terminal 1 — Launch Gazebo empty world
+ros2 launch turtlebot3_gazebo empty_world.launch.py
+
+# Terminal 2 — Build & run circle_motion publisher
+cd /workspace/turtlebot3_ws
+colcon build --packages-select student_robotics
+source install/setup.bash
+ros2 run student_robotics circle_motion
+
+# Terminal 3 — Run odom_monitor subscriber
+source /workspace/turtlebot3_ws/install/setup.bash
+ros2 run student_robotics odom_monitor
+
+# Or launch both together
+ros2 launch student_robotics robot.launch.py
+
+# Terminal 4 — Inspect topics
+ros2 topic list
+ros2 topic info /cmd_vel
+ros2 topic hz /odom
+ros2 node list
+
+# Terminal 5 (VNC) — Visualize
+rqt_graph
 ```
 
 ---
