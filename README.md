@@ -4,6 +4,72 @@
 
 A ROS 2 Python package (`my_robot_pkg`) demonstrating publisher/subscriber communication patterns with TurtleBot3 in Gazebo simulation.
 
+## Quick Start (Solution Branch)
+
+### 1. Open in Dev Container
+
+```bash
+git clone https://github.com/prakash-aryan/lecture6-ros2demo.git
+cd lecture6-ros2demo
+git checkout solution
+code .
+```
+
+In VS Code: **F1** → "Dev Containers: Reopen in Container" — wait for build (first time ~10-15 min).
+
+`my_robot_pkg` is built automatically by the `post-start.sh` script.
+
+### 2. Launch Gazebo + TurtleBot3
+
+Open the VNC desktop at http://localhost:6080 (password: `ros`), then in the VS Code terminal:
+
+```bash
+# Terminal 1 — Start simulation
+tb3_empty
+```
+
+Wait 30–60 seconds for Gazebo to fully load.
+
+### 3. Run the Exercise Package
+
+```bash
+# Terminal 2 — Launch both nodes at once
+ros2 launch my_robot_pkg robot.launch.py
+```
+
+Or run them individually:
+
+```bash
+# Terminal 2 — Velocity publisher (robot starts moving)
+ros2 run my_robot_pkg velocity_publisher
+
+# Terminal 3 — Odometry subscriber (prints position)
+ros2 run my_robot_pkg odom_subscriber
+```
+
+### 4. Verify with ROS 2 Tools
+
+```bash
+# Terminal 4 — Inspect the system
+ros2 topic list              # See all active topics
+ros2 topic echo /cmd_vel     # Watch velocity commands
+ros2 topic hz /cmd_vel       # Confirm 2 Hz publish rate
+ros2 node list               # See running nodes
+rqt_graph                    # Visual computation graph
+```
+
+### Manual Build (if needed)
+
+If the auto-build didn't run or you modified the code:
+
+```bash
+cd /workspace/turtlebot3_ws
+colcon build --packages-select my_robot_pkg
+source install/setup.bash
+```
+
+---
+
 ## Architecture
 
 **ROS 2 Communication:**

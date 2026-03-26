@@ -47,6 +47,19 @@ if [ -f "install/setup.bash" ]; then
     if ros2 pkg list | grep -q turtlebot3; then
         echo "[OK] Workspace already built"
 
+        # Build my_robot_pkg if source exists but package is not yet installed
+        if [ -f "src/my_robot_pkg/package.xml" ]; then
+            if ! ros2 pkg list 2>/dev/null | grep -q my_robot_pkg; then
+                echo ""
+                echo "Building my_robot_pkg..."
+                colcon build --symlink-install --packages-select my_robot_pkg
+                source install/setup.bash
+                echo "[OK] my_robot_pkg built successfully"
+            else
+                echo "[OK] my_robot_pkg already built"
+            fi
+        fi
+
         echo ""
         echo "=========================================="
         echo "[OK] TurtleBot3 Humble ready! ($ARCH)"
@@ -57,6 +70,14 @@ if [ -f "install/setup.bash" ]; then
             echo "  tb3_empty  - Launch empty world (Gazebo)"
         fi
         echo "  tb3_teleop - Keyboard control"
+        if [ -f "src/my_robot_pkg/package.xml" ]; then
+            echo ""
+            echo "  Exercise package (my_robot_pkg):"
+            echo "    ros2 run my_robot_pkg velocity_publisher"
+            echo "    ros2 run my_robot_pkg odom_subscriber"
+            echo "    ros2 launch my_robot_pkg robot.launch.py"
+        fi
+        echo ""
         echo "  VNC: http://localhost:6080 (password: ros)"
         echo "  Tip: Use a native VNC client on port 5901 for better performance"
         if [ "$GAZEBO_AVAILABLE" != "true" ]; then
