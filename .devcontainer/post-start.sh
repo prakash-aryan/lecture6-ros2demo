@@ -47,16 +47,16 @@ if [ -f "install/setup.bash" ]; then
     if ros2 pkg list | grep -q turtlebot3; then
         echo "[OK] Workspace already built"
 
-        # Build my_robot_pkg if source exists but package is not yet installed
-        if [ -f "src/my_robot_pkg/package.xml" ]; then
-            if ! ros2 pkg list 2>/dev/null | grep -q my_robot_pkg; then
+        # Build student_robotics if source exists but package is not yet installed
+        if [ -f "src/student_robotics/package.xml" ]; then
+            if ! ros2 pkg list 2>/dev/null | grep -q student_robotics; then
                 echo ""
-                echo "Building my_robot_pkg..."
-                colcon build --symlink-install --packages-select my_robot_pkg
+                echo "Building student_robotics..."
+                colcon build --symlink-install --packages-select student_robotics
                 source install/setup.bash
-                echo "[OK] my_robot_pkg built successfully"
+                echo "[OK] student_robotics built successfully"
             else
-                echo "[OK] my_robot_pkg already built"
+                echo "[OK] student_robotics already built"
             fi
         fi
 
@@ -70,12 +70,12 @@ if [ -f "install/setup.bash" ]; then
             echo "  tb3_empty  - Launch empty world (Gazebo)"
         fi
         echo "  tb3_teleop - Keyboard control"
-        if [ -f "src/my_robot_pkg/package.xml" ]; then
+        if [ -f "src/student_robotics/package.xml" ]; then
             echo ""
-            echo "  Exercise package (my_robot_pkg):"
-            echo "    ros2 run my_robot_pkg velocity_publisher"
-            echo "    ros2 run my_robot_pkg odom_subscriber"
-            echo "    ros2 launch my_robot_pkg robot.launch.py"
+            echo "  Exercise package (student_robotics):"
+            echo "    ros2 run student_robotics circle_motion"
+            echo "    ros2 run student_robotics odom_monitor"
+            echo "    ros2 launch student_robotics robot.launch.py"
         fi
         echo ""
         echo "  VNC: http://localhost:6080 (password: ros)"

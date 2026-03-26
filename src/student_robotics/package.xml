@@ -1,15 +1,14 @@
 <?xml version="1.0"?>
 <package format="3">
-  <name>my_robot_pkg</name>
+  <name>student_robotics</name>
   <version>0.1.0</version>
-  <description>Robot control package for TurtleBot3 — velocity publisher and odometry subscriber</description>
+  <description>ROS 2 exercise package — circle motion publisher and odometry monitor for TurtleBot3</description>
   <maintainer email="prakash.aryan@students.unibe.ch">Prakash Aryan</maintainer>
   <license>MIT</license>
 
   <depend>rclpy</depend>
   <depend>geometry_msgs</depend>
-
-  <exec_depend>nav_msgs</exec_depend>
+  <depend>nav_msgs</depend>
 
   <test_depend>pytest</test_depend>
 

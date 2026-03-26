@@ -2,7 +2,7 @@ from setuptools import setup
 import os
 from glob import glob
 
-package_name = 'my_robot_pkg'
+package_name = 'student_robotics'
 
 setup(
     name=package_name,
@@ -19,13 +19,13 @@ setup(
     zip_safe=True,
     maintainer='Prakash Aryan',
     maintainer_email='prakash.aryan@students.unibe.ch',
-    description='Robot control package for TurtleBot3',
+    description='ROS 2 exercise: circle motion publisher and odometry monitor',
     license='MIT',
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'velocity_publisher = my_robot_pkg.velocity_publisher:main',
-            'odom_subscriber = my_robot_pkg.odom_subscriber:main',
+            'circle_motion = student_robotics.circle_motion:main',
+            'odom_monitor = student_robotics.odom_monitor:main',
         ],
     },
 )

@@ -1,8 +1,38 @@
-# Lecture 6: ROS 2 Concepts & Building Software Packages — Solution
+# Lecture 6: ROS 2 Fundamentals — Topics, Nodes & Communication — Solution
 
 > DevOps for Cyber-Physical Systems | University of Bern
 
-A ROS 2 Python package (`my_robot_pkg`) demonstrating publisher/subscriber communication patterns with TurtleBot3 in Gazebo simulation.
+- **Name:** Prakash Aryan
+- **ROS 2 Version:** Humble Hawksbill
+- **Repository:** [github.com/prakash-aryan/lecture6-ros2demo](https://github.com/prakash-aryan/lecture6-ros2demo)
+
+## ROS 2 Communication Architecture
+
+```mermaid
+flowchart LR
+    CM[/circle_motion\] -->|/cmd_vel\nTwist| DD[turtlebot3_diff_drive]
+    DD -->|/odom\nOdometry| OM[/odom_monitor\]
+    JS[turtlebot3_joint_state] -->|/joint_states| RSP[robot_state_publisher]
+    IMU[turtlebot3_imu] -.->|/imu| DD
+    LS[turtlebot3_laserscan] -.->|/scan| DD
+```
+
+## Package Structure
+
+```
+src/student_robotics/
+├── launch/
+│   └── robot.launch.py        # Launch both nodes together
+├── resource/
+│   └── student_robotics        # ament resource index marker
+├── student_robotics/
+│   ├── __init__.py
+│   ├── circle_motion.py        # Velocity publisher (0.3 m/s, 0.5 rad/s, 10 Hz)
+│   └── odom_monitor.py         # Odometry subscriber (position + velocity)
+├── package.xml                 # Dependencies: rclpy, geometry_msgs, nav_msgs
+├── setup.cfg
+└── setup.py                    # Entry points: circle_motion, odom_monitor
+```
 
 ## Quick Start (Solution Branch)
 
@@ -17,192 +47,43 @@ code .
 
 In VS Code: **F1** → "Dev Containers: Reopen in Container" — wait for build (first time ~10-15 min).
 
-`my_robot_pkg` is built automatically by the `post-start.sh` script.
+`student_robotics` is built automatically by the `post-start.sh` script.
 
-### 2. Launch Gazebo + TurtleBot3
-
-Open the VNC desktop at http://localhost:6080 (password: `ros`), then in the VS Code terminal:
+### 2. Launch Gazebo (Terminal 1)
 
 ```bash
-# Terminal 1 — Start simulation
-tb3_empty
+ros2 launch turtlebot3_gazebo empty_world.launch.py
 ```
 
-Wait 30–60 seconds for Gazebo to fully load.
-
-### 3. Run the Exercise Package
-
-```bash
-# Terminal 2 — Launch both nodes at once
-ros2 launch my_robot_pkg robot.launch.py
-```
-
-Or run them individually:
-
-```bash
-# Terminal 2 — Velocity publisher (robot starts moving)
-ros2 run my_robot_pkg velocity_publisher
-
-# Terminal 3 — Odometry subscriber (prints position)
-ros2 run my_robot_pkg odom_subscriber
-```
-
-### 4. Verify with ROS 2 Tools
-
-```bash
-# Terminal 4 — Inspect the system
-ros2 topic list              # See all active topics
-ros2 topic echo /cmd_vel     # Watch velocity commands
-ros2 topic hz /cmd_vel       # Confirm 2 Hz publish rate
-ros2 node list               # See running nodes
-rqt_graph                    # Visual computation graph
-```
-
-### Manual Build (if needed)
-
-If the auto-build didn't run or you modified the code:
+### 3. Run Circle Motion (Terminal 2)
 
 ```bash
 cd /workspace/turtlebot3_ws
-colcon build --packages-select my_robot_pkg
+colcon build --packages-select student_robotics
 source install/setup.bash
+ros2 run student_robotics circle_motion
+```
+
+### 4. Run Odom Monitor (Terminal 3)
+
+```bash
+source /workspace/turtlebot3_ws/install/setup.bash
+ros2 run student_robotics odom_monitor
+```
+
+### 5. Or launch both at once
+
+```bash
+ros2 launch student_robotics robot.launch.py
 ```
 
 ---
 
-## Architecture
+# Aufgabe 1: Create ROS2 Package & Publisher-Subscriber Nodes
 
-**ROS 2 Communication:**
-```mermaid
-flowchart LR
-    subgraph my_robot_pkg
-        VP["velocity_publisher
-        (Twist @ 2 Hz)"]
-        OS["odom_subscriber
-        (Odometry listener)"]
-    end
+## (a) Package Creation & Circle Motion Publisher
 
-    subgraph ROS 2 Topics
-        CMD["/cmd_vel"]
-        ODOM["/odom"]
-    end
-
-    subgraph TurtleBot3 Gazebo
-        TB3["TurtleBot3
-        Gazebo Plugin"]
-    end
-
-    VP -->|publish| CMD
-    CMD -->|subscribe| TB3
-    TB3 -->|publish| ODOM
-    ODOM -->|subscribe| OS
-```
-
-**Package Development Workflow:**
-```mermaid
-flowchart TD
-    A["Stage 1: Create Package
-    ros2 pkg create my_robot_pkg"] --> B["Stage 2: Write Code
-    velocity_publisher.py
-    odom_subscriber.py"]
-    B --> C["Stage 3: Configure
-    package.xml + setup.py"]
-    C --> D["Stage 4: Build
-    colcon build --packages-select my_robot_pkg"]
-    D --> E["Stage 5: Source
-    source install/setup.bash"]
-    E --> F["Stage 6: Run
-    ros2 run / ros2 launch"]
-    F --> G["Stage 7: Verify
-    ros2 topic list / echo / hz"]
-```
-
-## Project Structure
-
-```
-lecture6-ros2demo/
-├── .devcontainer/
-│   ├── Dockerfile               # ROS 2 Humble container
-│   ├── devcontainer.json        # VS Code Dev Container config
-│   ├── post-create.sh           # One-time setup script
-│   ├── post-start.sh            # Runs each container start
-│   └── verify-setup.sh          # Verifies environment
-├── src/
-│   ├── my_robot_pkg/            # ★ Exercise solution package
-│   │   ├── my_robot_pkg/
-│   │   │   ├── __init__.py
-│   │   │   ├── velocity_publisher.py   # Publishes to /cmd_vel
-│   │   │   └── odom_subscriber.py      # Subscribes to /odom
-│   │   ├── launch/
-│   │   │   └── robot.launch.py         # Launches both nodes
-│   │   ├── resource/
-│   │   │   └── my_robot_pkg
-│   │   ├── package.xml                 # Package metadata & deps
-│   │   ├── setup.py                    # Python package config
-│   │   └── setup.cfg                   # Install behavior
-│   ├── DynamixelSDK/            # Motor control SDK
-│   ├── turtlebot3/              # TurtleBot3 packages
-│   ├── turtlebot3_msgs/         # TurtleBot3 messages
-│   └── turtlebot3_simulations/  # Gazebo simulation
-├── .gitignore
-├── LICENSE
-└── README.md                    # This file
-```
-
----
-
-# Exercise: Create a ROS 2 Package for TurtleBot3 Control
-
-## Task 1: Create the Package
-
-### (a) Create Python Package Structure
-
-Navigate to the workspace source directory and create a new ROS 2 Python package:
-
-```bash
-cd /workspace/turtlebot3_ws/src
-
-ros2 pkg create my_robot_pkg \
-  --build-type ament_python \
-  --dependencies rclpy geometry_msgs
-```
-
-```
-going to create a new package
-package name: my_robot_pkg
-destination directory: /workspace/turtlebot3_ws/src
-package format: 3
-version: 0.0.0
-description: TODO: Package description
-maintainer: ['root <root@todo.todo>']
-licenses: ['TODO: License declaration']
-build type: ament_python
-dependencies: ['rclpy', 'geometry_msgs']
-creating folder ./my_robot_pkg
-creating ./my_robot_pkg/package.xml
-creating source folder
-creating folder ./my_robot_pkg/my_robot_pkg
-creating ./my_robot_pkg/setup.py
-creating ./my_robot_pkg/setup.cfg
-creating ./my_robot_pkg/my_robot_pkg/__init__.py
-creating folder ./my_robot_pkg/resource
-creating ./my_robot_pkg/resource/my_robot_pkg
-creating folder ./my_robot_pkg/test
-```
-
-Verify the package structure:
-
-```bash
-ls my_robot_pkg/
-```
-
-```
-my_robot_pkg/  package.xml  resource/  setup.cfg  setup.py  test/
-```
-
-### (b) Write the Velocity Publisher Node
-
-Create `my_robot_pkg/my_robot_pkg/velocity_publisher.py`:
+Created package `student_robotics` with a publisher node `circle_motion.py` that drives the TurtleBot3 in a circle:
 
 ```python
 import rclpy
@@ -210,48 +91,89 @@ from rclpy.node import Node
 from geometry_msgs.msg import Twist
 
 
-class VelocityPublisher(Node):
+class CircleMotion(Node):
+    """
+    ROS 2 publisher node that drives TurtleBot3 in a circle.
+
+    Publishes Twist messages to /cmd_vel at 10 Hz with:
+      - linear.x  = 0.3 m/s   (forward speed)
+      - angular.z = 0.5 rad/s  (turn rate)
+    """
+
     def __init__(self):
-        super().__init__('velocity_publisher')
-        self.publisher = self.create_publisher(
-            Twist,
-            '/cmd_vel',
-            10)
-        self.timer = self.create_timer(
-            0.5,  # 2 Hz
-            self.timer_callback)
-        self.get_logger().info('Publishing velocity commands')
+        super().__init__('circle_motion')
+
+        # Create publisher on /cmd_vel with QoS depth 10
+        self.publisher = self.create_publisher(Twist, '/cmd_vel', 10)
+
+        # 10 Hz timer -> callback every 0.1 s
+        self.timer = self.create_timer(0.1, self.timer_callback)
+
+        self.get_logger().info(
+            'CircleMotion started — publishing to /cmd_vel at 10 Hz')
 
     def timer_callback(self):
         msg = Twist()
-        msg.linear.x = 0.5   # m/s forward
-        msg.angular.z = 0.1  # rad/s turn
+        msg.linear.x = 0.3   # m/s forward
+        msg.angular.z = 0.5  # rad/s counter-clockwise
         self.publisher.publish(msg)
         self.get_logger().info(
-            f'Publishing: linear.x={msg.linear.x:.1f}, angular.z={msg.angular.z:.1f}')
+            f'Velocity -> linear.x={msg.linear.x:.1f}, angular.z={msg.angular.z:.1f}')
 
 
 def main(args=None):
     rclpy.init(args=args)
-    node = VelocityPublisher()
+    node = CircleMotion()
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
         pass
     finally:
+        # Stop the robot before shutting down
+        stop_msg = Twist()
+        node.publisher.publish(stop_msg)
         node.destroy_node()
         rclpy.shutdown()
+
+
+if __name__ == '__main__':
+    main()
 ```
 
-**Key concepts:**
-- Inherits from `Node` base class — provides all ROS 2 functionality
-- `create_publisher(Twist, '/cmd_vel', 10)` — publishes Twist messages to `/cmd_vel` with QoS depth of 10
-- `create_timer(0.5, callback)` — calls `timer_callback` at 2 Hz (every 0.5s)
-- `Twist` message has `linear.x` (forward speed) and `angular.z` (turn rate)
+**Testing — Build and run:**
 
-### (c) Write the Odometry Subscriber Node
+```bash
+cd /workspace/turtlebot3_ws
+colcon build --packages-select student_robotics
+source install/setup.bash
+ros2 run student_robotics circle_motion
+```
 
-Create `my_robot_pkg/my_robot_pkg/odom_subscriber.py`:
+```
+Starting >>> student_robotics
+Finished <<< student_robotics [2.37s]
+
+Summary: 1 package finished [56.2s]
+[INFO] [1774515473.565195389] [circle_motion]: CircleMotion started — publishing to /cmd_vel at 10 Hz
+[INFO] [1774515473.863745942] [circle_motion]: Velocity → linear.x=0.3, angular.z=0.5
+[INFO] [1774515473.969675095] [circle_motion]: Velocity → linear.x=0.3, angular.z=0.5
+[INFO] [1774515474.064554060] [circle_motion]: Velocity → linear.x=0.3, angular.z=0.5
+[INFO] [1774515474.164401815] [circle_motion]: Velocity → linear.x=0.3, angular.z=0.5
+[INFO] [1774515474.264625951] [circle_motion]: Velocity → linear.x=0.3, angular.z=0.5
+...
+```
+
+**Robot moving in circles in Gazebo:**
+
+![Gazebo Circle Motion](screenshots/gazebo-circle-motion.png)
+
+**Why use `create_timer()`?**
+
+`create_timer()` ensures the publisher sends velocity commands at a fixed frequency (10 Hz) by invoking the callback at regular intervals, decoupled from the main spin loop. Without a timer, we would need manual loop management and sleep calls, which is error-prone and blocks the node from processing other callbacks like subscriptions or services.
+
+## (b) Odometry Subscriber
+
+Created `odom_monitor.py` that subscribes to `/odom` and logs position (x, y) and velocities (linear.x, angular.z):
 
 ```python
 import rclpy
@@ -259,28 +181,45 @@ from rclpy.node import Node
 from nav_msgs.msg import Odometry
 
 
-class OdometrySubscriber(Node):
+class OdomMonitor(Node):
+    """
+    ROS 2 subscriber node that monitors TurtleBot3 odometry.
+
+    Subscribes to /odom and logs:
+      - Position:   (x, y)
+      - Velocities: (linear.x, angular.z)
+    """
+
     def __init__(self):
-        super().__init__('odom_subscriber')
+        super().__init__('odom_monitor')
+
+        # Subscribe to /odom with QoS depth 10
         self.subscription = self.create_subscription(
             Odometry,
             '/odom',
             self.odom_callback,
             10)
-        self.get_logger().info('Listening to odometry')
+
+        self.get_logger().info(
+            'OdomMonitor started — listening to /odom')
 
     def odom_callback(self, msg):
-        pos = msg.pose.pose.position
-        self.get_logger().info(
-            f'Robot at x={pos.x:.2f}, y={pos.y:.2f}')
+        # Extract position
+        x = msg.pose.pose.position.x
+        y = msg.pose.pose.position.y
 
-        if pos.x > 5.0:
-            self.get_logger().warn('Robot too far!')
+        # Extract velocities
+        vx = msg.twist.twist.linear.x
+        wz = msg.twist.twist.angular.z
+
+        self.get_logger().info(
+            f'Position: x={x:.2f}, y={y:.2f} | '
+            f'Velocity: linear.x={vx:.2f}, angular.z={wz:.2f}')
 
 
 def main(args=None):
     rclpy.init(args=args)
-    node = OdometrySubscriber()
+    node = OdomMonitor()
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
@@ -288,328 +227,185 @@ def main(args=None):
     finally:
         node.destroy_node()
         rclpy.shutdown()
+
+
+if __name__ == '__main__':
+    main()
 ```
 
-**Key concepts:**
-- `create_subscription(Odometry, '/odom', callback, 10)` — listens to `/odom` topic
-- Callback fires each time a new Odometry message arrives
-- `msg.pose.pose.position` extracts the robot's (x, y) position from the message
-- Data processing: warns if robot exceeds x > 5.0 meters
-
----
-
-## Task 2: Configure and Build the Package
-
-### (a) Configure package.xml
-
-Update `package.xml` with metadata and dependencies:
-
-```xml
-<?xml version="1.0"?>
-<package format="3">
-  <name>my_robot_pkg</name>
-  <version>0.1.0</version>
-  <description>Robot control package for TurtleBot3</description>
-  <maintainer email="prakash.aryan@students.unibe.ch">Prakash Aryan</maintainer>
-  <license>MIT</license>
-
-  <depend>rclpy</depend>
-  <depend>geometry_msgs</depend>
-
-  <exec_depend>nav_msgs</exec_depend>
-
-  <test_depend>pytest</test_depend>
-
-  <export>
-    <build_type>ament_python</build_type>
-  </export>
-</package>
-```
-
-**Dependency types:**
-- `<depend>` — needed at both build and runtime (rclpy, geometry_msgs)
-- `<exec_depend>` — needed only at runtime (nav_msgs for Odometry)
-- `<test_depend>` — needed only for tests (pytest)
-
-### (b) Configure setup.py
-
-Register both nodes as console scripts in `setup.py`:
-
-```python
-from setuptools import setup
-import os
-from glob import glob
-
-package_name = 'my_robot_pkg'
-
-setup(
-    name=package_name,
-    version='0.1.0',
-    packages=[package_name],
-    data_files=[
-        ('share/ament_index/resource_index/packages',
-            ['resource/' + package_name]),
-        ('share/' + package_name, ['package.xml']),
-        (os.path.join('share', package_name, 'launch'),
-            glob('launch/*.launch.py')),
-    ],
-    install_requires=['setuptools'],
-    zip_safe=True,
-    maintainer='Prakash Aryan',
-    maintainer_email='prakash.aryan@students.unibe.ch',
-    description='Robot control package for TurtleBot3',
-    license='MIT',
-    tests_require=['pytest'],
-    entry_points={
-        'console_scripts': [
-            'velocity_publisher = my_robot_pkg.velocity_publisher:main',
-            'odom_subscriber = my_robot_pkg.odom_subscriber:main',
-        ],
-    },
-)
-```
-
-**Entry points mapping:**
-```
-Command line:        $ ros2 run my_robot_pkg velocity_publisher
-Maps to:             my_robot_pkg/velocity_publisher.py → main()
-
-Command line:        $ ros2 run my_robot_pkg odom_subscriber
-Maps to:             my_robot_pkg/odom_subscriber.py → main()
-```
-
-**`data_files`** also installs launch files from the `launch/` directory so `ros2 launch` can find them.
-
-### (c) Build the Package
-
-```bash
-cd /workspace/turtlebot3_ws
-
-# Build only our package
-colcon build --packages-select my_robot_pkg
-```
+**Both nodes running — odom_monitor terminal output:**
 
 ```
-Starting >>> my_robot_pkg
-Finished <<< my_robot_pkg [1.2s]
-
-Summary: 1 package finished [1.8s]
+[INFO] [1774515499.579080843] [odom_monitor]: OdomMonitor started — listening to /odom
+[INFO] [1774515499.582496855] [odom_monitor]: Position: x=-0.50, y=0.36 | Velocity: linear.x=0.30, angular.z=0.50
+[INFO] [1774515499.603736754] [odom_monitor]: Position: x=-0.49, y=0.35 | Velocity: linear.x=0.30, angular.z=0.50
+[INFO] [1774515499.637242866] [odom_monitor]: Position: x=-0.49, y=0.34 | Velocity: linear.x=0.30, angular.z=0.50
+[INFO] [1774515499.670841967] [odom_monitor]: Position: x=-0.49, y=0.33 | Velocity: linear.x=0.30, angular.z=0.50
+[INFO] [1774515499.704259430] [odom_monitor]: Position: x=-0.48, y=0.32 | Velocity: linear.x=0.30, angular.z=0.50
+[INFO] [1774515499.739537848] [odom_monitor]: Position: x=-0.48, y=0.31 | Velocity: linear.x=0.30, angular.z=0.50
+[INFO] [1774515499.774530145] [odom_monitor]: Position: x=-0.47, y=0.30 | Velocity: linear.x=0.30, angular.z=0.50
+[INFO] [1774515499.807936940] [odom_monitor]: Position: x=-0.47, y=0.29 | Velocity: linear.x=0.30, angular.z=0.50
+[INFO] [1774515499.841032495] [odom_monitor]: Position: x=-0.46, y=0.28 | Velocity: linear.x=0.30, angular.z=0.50
+[INFO] [1774515500.080109577] [odom_monitor]: Position: x=-0.42, y=0.22 | Velocity: linear.x=0.30, angular.z=0.50
+[INFO] [1774515500.318336815] [odom_monitor]: Position: x=-0.38, y=0.17 | Velocity: linear.x=0.30, angular.z=0.51
+[INFO] [1774515500.556955352] [odom_monitor]: Position: x=-0.33, y=0.12 | Velocity: linear.x=0.30, angular.z=0.50
+[INFO] [1774515500.660003894] [odom_monitor]: Position: x=-0.30, y=0.10 | Velocity: linear.x=0.30, angular.z=0.51
 ```
 
-```bash
-# Source the workspace — REQUIRED after every build
-source install/setup.bash
-```
-
-### (d) Run the Nodes
-
-**Terminal 1 — Launch TurtleBot3 in Gazebo:**
-
-```bash
-ros2 launch turtlebot3_gazebo turtlebot3_world.launch.py
-```
-
-Wait 30–60 seconds for Gazebo to fully load.
-
-**Terminal 2 — Run the velocity publisher:**
-
-```bash
-source install/setup.bash
-ros2 run my_robot_pkg velocity_publisher
-```
+**`ros2 node list` showing both nodes:**
 
 ```
-[INFO] [velocity_publisher]: Publishing velocity commands
-[INFO] [velocity_publisher]: Publishing: linear.x=0.5, angular.z=0.1
-[INFO] [velocity_publisher]: Publishing: linear.x=0.5, angular.z=0.1
-[INFO] [velocity_publisher]: Publishing: linear.x=0.5, angular.z=0.1
-```
-
-The TurtleBot3 starts moving forward with a slight left turn in Gazebo.
-
-**Terminal 3 — Run the odometry subscriber:**
-
-```bash
-source install/setup.bash
-ros2 run my_robot_pkg odom_subscriber
-```
-
-```
-[INFO] [odom_subscriber]: Listening to odometry
-[INFO] [odom_subscriber]: Robot at x=0.52, y=0.01
-[INFO] [odom_subscriber]: Robot at x=1.05, y=0.04
-[INFO] [odom_subscriber]: Robot at x=1.57, y=0.09
-```
-
----
-
-## Task 3: Launch File and Debugging
-
-### (a) Create a Launch File
-
-Create `launch/robot.launch.py` to start both nodes with a single command:
-
-```python
-from launch import LaunchDescription
-from launch_ros.actions import Node
-
-
-def generate_launch_description():
-    return LaunchDescription([
-        Node(
-            package='my_robot_pkg',
-            executable='velocity_publisher',
-            name='velocity_publisher',
-            output='screen',
-        ),
-        Node(
-            package='my_robot_pkg',
-            executable='odom_subscriber',
-            name='odom_subscriber',
-            output='screen',
-        ),
-    ])
-```
-
-**Run with launch file (starts both nodes at once):**
-
-```bash
-# Rebuild to pick up the launch file
-colcon build --packages-select my_robot_pkg
-source install/setup.bash
-
-# Launch both nodes
-ros2 launch my_robot_pkg robot.launch.py
-```
-
-```
-[INFO] [launch]: All log files can be found below /root/.ros/log/...
-[INFO] [launch]: Default logging verbosity is set to INFO
-[INFO] [velocity_publisher-1]: process started with pid [12345]
-[INFO] [odom_subscriber-2]: process started with pid [12346]
-[velocity_publisher-1] [INFO] [velocity_publisher]: Publishing velocity commands
-[odom_subscriber-2] [INFO] [odom_subscriber]: Listening to odometry
-[velocity_publisher-1] [INFO] [velocity_publisher]: Publishing: linear.x=0.5, angular.z=0.1
-[odom_subscriber-2] [INFO] [odom_subscriber]: Robot at x=0.52, y=0.01
-```
-
-### (b) Debugging with ROS 2 Tools
-
-**List all active nodes:**
-
-```bash
-$ ros2 node list
-/velocity_publisher
-/odom_subscriber
+/circle_motion
+/gazebo
+/odom_monitor
+/robot_state_publisher
 /turtlebot3_diff_drive
 /turtlebot3_imu
 /turtlebot3_joint_state
 /turtlebot3_laserscan
 ```
 
-**List all active topics:**
+**How does pub-sub decoupling work?**
 
-```bash
-$ ros2 topic list
-/cmd_vel
-/odom
-/scan
-/tf
-/tf_static
-/clock
-/joint_states
-/robot_description
-```
-
-**Inspect `/cmd_vel` topic:**
-
-```bash
-$ ros2 topic info /cmd_vel
-Type: geometry_msgs/msg/Twist
-Publisher count: 1
-Subscription count: 1
-
-$ ros2 topic echo /cmd_vel
-linear:
-  x: 0.5
-  y: 0.0
-  z: 0.0
-angular:
-  x: 0.0
-  y: 0.0
-  z: 0.1
-```
-
-**Check publishing frequency:**
-
-```bash
-$ ros2 topic hz /cmd_vel
-average rate: 2.001
-	min: 0.499s max: 0.501s std dev: 0.00050s window: 10
-```
-
-Confirms our publisher is running at the expected 2 Hz.
-
-**Visualize the computation graph:**
-
-```bash
-$ rqt_graph
-```
-
-This opens a visual graph showing how `velocity_publisher` → `/cmd_vel` → `turtlebot3_diff_drive` and `turtlebot3_diff_drive` → `/odom` → `odom_subscriber` are connected.
-
-### (c) TurtleBot3 Integration Diagram
-
-```mermaid
-sequenceDiagram
-    participant VP as velocity_publisher
-    participant CMD as /cmd_vel
-    participant TB3 as TurtleBot3 (Gazebo)
-    participant ODOM as /odom
-    participant OS as odom_subscriber
-
-    loop Every 0.5s (2 Hz)
-        VP->>CMD: Twist(linear.x=0.5, angular.z=0.1)
-        CMD->>TB3: Deliver velocity command
-        TB3->>TB3: Simulate physics & movement
-        TB3->>ODOM: Odometry(pose, twist)
-        ODOM->>OS: Deliver odometry data
-        OS->>OS: Log position (x, y)
-    end
-```
-
-**How it works end-to-end:**
-
-1. `velocity_publisher` publishes `Twist` messages to `/cmd_vel` at 2 Hz
-2. TurtleBot3's Gazebo plugin subscribes to `/cmd_vel` and moves the simulated robot
-3. Gazebo computes the new robot position using its physics engine
-4. TurtleBot3 publishes its updated position as `Odometry` messages on `/odom`
-5. `odom_subscriber` receives the position data and logs it to the console
-
-The nodes are fully **decoupled** — the publisher doesn't know about the subscriber. They communicate entirely through ROS 2 topics via the DDS middleware layer.
+In ROS 2 publish-subscribe, publishers and subscribers communicate through named topics without knowing about each other directly — the publisher writes messages to a topic, and any subscriber listening to that topic receives them independently. This means `circle_motion` can publish velocity commands to `/cmd_vel` without needing to know whether the simulation, a real robot, or nothing at all is subscribed to that topic. This decoupling allows nodes to be started, stopped, or replaced independently, making the system modular and resilient — for example, `odom_monitor` continues to receive `/odom` data from the simulation regardless of whether `circle_motion` is running.
 
 ---
 
-## Summary: What Was Built
+# Aufgabe 2: ROS2 Topic Inspection & Message Frequency Analysis
 
-| Component | File | Purpose |
-|---|---|---|
-| Publisher node | `velocity_publisher.py` | Sends `Twist` velocity commands to `/cmd_vel` at 2 Hz |
-| Subscriber node | `odom_subscriber.py` | Listens to `/odom` and logs robot position |
-| Launch file | `robot.launch.py` | Starts both nodes with a single command |
-| Package config | `package.xml` | Declares dependencies (rclpy, geometry_msgs, nav_msgs) |
+## (a) ROS2 CLI Topic Commands
 
-| Build config | `setup.py` | Registers entry points and installs launch files |
-| Install config | `setup.cfg` | Tells colcon where to install scripts |
+**`ros2 topic list` — all active topics:**
 
-**ROS 2 concepts demonstrated:**
-- **Nodes**: Independent processes (velocity_publisher, odom_subscriber)
-- **Topics**: Named communication channels (/cmd_vel, /odom)
-- **Publishers**: Send messages to topics
-- **Subscribers**: Receive messages from topics (callback-driven)
-- **Messages**: Typed data structures (Twist, Odometry)
-- **Launch files**: Orchestrate multiple nodes
-- **colcon**: Build system for ROS 2 workspaces
+```
+/clock
+/cmd_vel
+/imu
+/joint_states
+/odom
+/parameter_events
+/performance_metrics
+/robot_description
+/rosout
+/scan
+/tf
+/tf_static
+```
+
+**`ros2 topic info /cmd_vel` — publishers and subscribers:**
+
+```
+Type: geometry_msgs/msg/Twist
+Publisher count: 1
+Subscription count: 1
+```
+
+**`ros2 topic info /odom`:**
+
+```
+Type: nav_msgs/msg/Odometry
+Publisher count: 1
+Subscription count: 1
+```
+
+**`ros2 topic hz /odom` — frequency:**
+
+```
+average rate: 29.373
+        min: 0.033s max: 0.035s std dev: 0.00047s window: 31
+average rate: 29.376
+        min: 0.033s max: 0.035s std dev: 0.00046s window: 61
+average rate: 29.351
+        min: 0.033s max: 0.035s std dev: 0.00047s window: 91
+average rate: 29.368
+        min: 0.033s max: 0.037s std dev: 0.00056s window: 121
+```
+
+**`ros2 topic bw /odom` — bandwidth:**
+
+```
+Subscribed to [/odom]
+21.32 KB/s from 29 messages
+        Message size mean: 0.72 KB min: 0.72 KB max: 0.72 KB
+21.52 KB/s from 59 messages
+        Message size mean: 0.72 KB min: 0.72 KB max: 0.72 KB
+```
+
+**`ros2 node list` — all nodes:**
+
+```
+/circle_motion
+/gazebo
+/odom_monitor
+/robot_state_publisher
+/turtlebot3_diff_drive
+/turtlebot3_imu
+/turtlebot3_joint_state
+/turtlebot3_laserscan
+```
+
+**`ros2 node info /circle_motion`:**
+
+```
+/circle_motion
+  Subscribers:
+
+  Publishers:
+    /cmd_vel: geometry_msgs/msg/Twist
+    /parameter_events: rcl_interfaces/msg/ParameterEvent
+    /rosout: rcl_interfaces/msg/Log
+  Service Servers:
+    /circle_motion/describe_parameters: rcl_interfaces/srv/DescribeParameters
+    /circle_motion/get_parameter_types: rcl_interfaces/srv/GetParameterTypes
+    /circle_motion/get_parameters: rcl_interfaces/srv/GetParameters
+    /circle_motion/list_parameters: rcl_interfaces/srv/ListParameters
+    /circle_motion/set_parameters: rcl_interfaces/srv/SetParameters
+    /circle_motion/set_parameters_atomically: rcl_interfaces/srv/SetParametersAtomically
+  Service Clients:
+
+  Action Servers:
+
+  Action Clients:
+```
+
+### Answers
+
+**What is `/odom` frequency? Why does frequency matter for robot control?**
+
+The `/odom` topic publishes at approximately **29.4 Hz** (~30 Hz), matching the Gazebo physics simulation rate. Frequency matters because higher update rates provide smoother, more accurate position estimates, allowing the control loop to react faster to changes. If the odometry frequency is too low, the robot may overshoot targets or oscillate because the controller is working with stale position data.
+
+**How many publishers and subscribers does `/cmd_vel` have? List them.**
+
+`/cmd_vel` has **1 publisher** and **1 subscriber**:
+- Publisher: `/circle_motion` (our node sending Twist velocity commands)
+- Subscriber: `/turtlebot3_diff_drive` (Gazebo plugin that drives the simulated wheels)
+
+**What's the difference between `ros2 topic hz` and `ros2 topic bw`?**
+
+`ros2 topic hz` measures the **message frequency** — how many messages per second arrive on a topic (e.g., 29.4 Hz for `/odom`). `ros2 topic bw` measures the **bandwidth** — the actual data throughput in KB/s (e.g., 21.3 KB/s), which depends on both the message rate and the size of each message (0.72 KB for Odometry).
+
+## (b) Visualize Communication Graph
+
+**`rqt_graph` showing node communication:**
+
+![rqt_graph](screenshots/rqt-graph.png)
+
+**What does the graph show? How are nodes connected?**
+
+The rqt_graph shows the ROS 2 computation graph — each oval is a node and each labeled arrow is a topic carrying messages between them. `/circle_motion` publishes Twist messages on `/cmd_vel` to `/turtlebot3_diff_drive`, which controls the simulated wheels and in turn publishes Odometry on `/odom`, which `/odom_monitor` subscribes to. Other connections include `/turtlebot3_joint_state` sending `/joint_states` to `/robot_state_publisher`, while `/turtlebot3_imu`, `/turtlebot3_laserscan`, and `/gazebo` are standalone sensor nodes.
+
+**What happens if you stop `circle_motion`? Does `odom_monitor` still work? Why?**
+
+If `circle_motion` is stopped, the robot stops receiving velocity commands and coasts to a halt, but `odom_monitor` continues to work and receive odometry data from `/turtlebot3_diff_drive`. This is because pub-sub is decoupled — `odom_monitor` subscribes to `/odom` independently and the Gazebo simulation keeps publishing odometry regardless of whether any velocity commands are being sent.
+
+---
+
+## Cleanup
+
+```bash
+# Stop all nodes with Ctrl+C, then:
+ros2 launch turtlebot3_gazebo empty_world.launch.py  # re-launch if needed
+```
 
 ---
 
