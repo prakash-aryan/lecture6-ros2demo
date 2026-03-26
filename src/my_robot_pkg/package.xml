@@ -1,0 +1,19 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>my_robot_pkg</name>
+  <version>0.1.0</version>
+  <description>Robot control package for TurtleBot3 — velocity publisher and odometry subscriber</description>
+  <maintainer email="prakash.aryan@students.unibe.ch">Prakash Aryan</maintainer>
+  <license>MIT</license>
+
+  <depend>rclpy</depend>
+  <depend>geometry_msgs</depend>
+
+  <exec_depend>nav_msgs</exec_depend>
+
+  <test_depend>pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

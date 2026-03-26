@@ -1,868 +1,550 @@
-# Lecture 6: ROS 2 Concepts & Building Software Packages
-
-
-https://github.com/user-attachments/assets/8124b78b-d82c-4339-b1e3-97d4fc210e88
-
+# Lecture 6: ROS 2 Concepts & Building Software Packages — Solution
 
 > DevOps for Cyber-Physical Systems | University of Bern
 
-Complete ROS2 Humble development environment with TurtleBot3 Burger simulation in Gazebo Classic, packaged as a VS Code Dev Container for cross-platform robotics development.
+A ROS 2 Python package (`my_robot_pkg`) demonstrating publisher/subscriber communication patterns with TurtleBot3 in Gazebo simulation.
 
-> **Apple Silicon (M1/M2/M3) users:** Gazebo Classic 11 does not have arm64 packages for Ubuntu 22.04, and Gazebo Sim crashes in Docker on Apple Silicon due to lack of GPU passthrough. This means **Gazebo simulation will not work** on Apple Silicon Macs. Everything else (RViz, Nav2, SLAM, teleop, ROS2 tooling) works normally. For full simulation support, use an Intel/AMD machine or a cloud VM.
+## Architecture
 
-> **GPU Passthrough:** The devcontainer uses `--gpus all` for NVIDIA GPU acceleration (requires [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/index.html)). If this doesn't apply to you, comment out the `"runArgs"` line in `.devcontainer/devcontainer.json` before opening the container. The container will fall back to software rendering automatically.
->
-> | Setup | GPU in container? | Action needed |
-> |---|---|---|
-> | Windows + NVIDIA | Yes | Works out of the box |
-> | Linux + NVIDIA | Yes | Works out of the box |
-> | Linux + AMD | Possible | Replace `runArgs` with `["--device", "/dev/dri:/dev/dri"]` |
-> | Windows + AMD | No | Comment out `runArgs` (no WSL2 support for AMD GPUs) |
-> | macOS (any) | No | Comment out `runArgs` |
-
----
-
-## Table of Contents
-
-- [Overview](#overview)
-- [How It Works](#how-it-works)
-- [Prerequisites](#prerequisites)
-- [Installation](#installation)
-- [Quick Start](#quick-start)
-- [Creating Your First ROS2 Package](#creating-your-first-ros2-package)
-- [Usage](#usage)
-- [Project Structure](#project-structure)
-- [Configuration](#configuration)
-- [Troubleshooting](#troubleshooting)
-- [Learning Resources](#learning-resources)
-
----
-
-## Overview
-
-This project provides a complete, ready-to-use ROS2 Humble development environment running inside a Docker container. No need to install ROS2, Gazebo, or manage dependencies on your host system—everything runs in an isolated, reproducible environment that works identically on Windows, macOS, and Linux.
-
-### Features
-
-- **ROS2 Humble** (Ubuntu 22.04 Jammy)
-- **Gazebo Classic 11** simulator with software rendering support
-- **TurtleBot3 Burger** robot packages
-- **Navigation2** and **SLAM** (Cartographer)
-- **noVNC Desktop** for browser-based GUI access
-- **Pre-configured development environment** with VS Code extensions
-- **Platform-agnostic**: Works on Windows, macOS, and Linux
-
----
-
-## How It Works
-
-### ROS2 Communication Architecture
-
+**ROS 2 Communication:**
 ```mermaid
-graph LR
-    subgraph "Your Demo Package"
-        PUB["Velocity Publisher
-        (demo_nodes)"]
-        SUB["Odometry Subscriber
-        (demo_nodes)"]
+flowchart LR
+    subgraph my_robot_pkg
+        VP["velocity_publisher
+        (Twist @ 2 Hz)"]
+        OS["odom_subscriber
+        (Odometry listener)"]
     end
-    
-    subgraph "ROS2 Topics"
-        CMD["/cmd_vel
-        Twist messages"]
-        ODOM["/odom
-        Odometry messages"]
+
+    subgraph ROS 2 Topics
+        CMD["/cmd_vel"]
+        ODOM["/odom"]
     end
-    
-    subgraph "TurtleBot3 Simulation"
+
+    subgraph TurtleBot3 Gazebo
         TB3["TurtleBot3
         Gazebo Plugin"]
-        GAZ["Gazebo
-        Physics Engine"]
     end
-    
-    PUB -->|publish| CMD
+
+    VP -->|publish| CMD
     CMD -->|subscribe| TB3
-    TB3 <-->|control| GAZ
     TB3 -->|publish| ODOM
-    ODOM -->|subscribe| SUB
-    
-    style PUB fill:#2ECC71,stroke:#27AE60,stroke-width:3px,color:#000
-    style SUB fill:#2ECC71,stroke:#27AE60,stroke-width:3px,color:#000
-    style CMD fill:#F39C12,stroke:#E67E22,stroke-width:3px,color:#000
-    style ODOM fill:#F39C12,stroke:#E67E22,stroke-width:3px,color:#000
-    style TB3 fill:#3498DB,stroke:#2980B9,stroke-width:3px,color:#FFF
-    style GAZ fill:#3498DB,stroke:#2980B9,stroke-width:3px,color:#FFF
+    ODOM -->|subscribe| OS
 ```
 
-### Package Development Workflow
-
+**Package Development Workflow:**
 ```mermaid
 flowchart TD
-    A["Create Package
-    ros2 pkg create"] --> B["Write Nodes
-    publisher.py, subscriber.py"]
-    B --> C["Edit package.xml
-    Add dependencies"]
-    C --> D["Edit setup.py
-    Register entry points"]
-    D --> E["Build Package
-    colcon build"]
-    E --> F["Source Workspace
+    A["Stage 1: Create Package
+    ros2 pkg create my_robot_pkg"] --> B["Stage 2: Write Code
+    velocity_publisher.py
+    odom_subscriber.py"]
+    B --> C["Stage 3: Configure
+    package.xml + setup.py"]
+    C --> D["Stage 4: Build
+    colcon build --packages-select my_robot_pkg"]
+    D --> E["Stage 5: Source
     source install/setup.bash"]
-    F --> G["Run Nodes
-    ros2 run demo_nodes ..."]
-    G --> H{Works?}
-    H -->|No| I[Debug & Fix]
-    I --> B
-    H -->|Yes| J["Deploy & Test
-    with TurtleBot3"]
-    
-    style A fill:#E74C3C,stroke:#C0392B,stroke-width:3px,color:#FFF
-    style E fill:#F39C12,stroke:#E67E22,stroke-width:3px,color:#000
-    style G fill:#2ECC71,stroke:#27AE60,stroke-width:3px,color:#000
-    style J fill:#3498DB,stroke:#2980B9,stroke-width:3px,color:#FFF
+    E --> F["Stage 6: Run
+    ros2 run / ros2 launch"]
+    F --> G["Stage 7: Verify
+    ros2 topic list / echo / hz"]
 ```
-
-### Container Architecture
-
-```mermaid
-flowchart TB
-    subgraph "Your Computer"
-        subgraph "Docker Container"
-            subgraph "Ubuntu 22.04"
-                ROS[ROS2 Humble]
-                GAZ[Gazebo Classic 11]
-                TB3[TurtleBot3 Packages]
-                PKG[Your Custom Package]
-            end
-            VNC[noVNC Desktop]
-        end
-        VSCODE[VS Code]
-        BROWSER["Web Browser
-        localhost:6080"]
-    end
-    
-    VSCODE <-->|Dev Containers| ROS
-    BROWSER <-->|GUI Access| VNC
-    VNC <--> GAZ
-    ROS <--> TB3
-    ROS <--> PKG
-    PKG <--> TB3
-    
-    style VSCODE fill:#3498DB,stroke:#2980B9,stroke-width:3px,color:#FFF
-    style ROS fill:#9B59B6,stroke:#8E44AD,stroke-width:3px,color:#FFF
-    style GAZ fill:#E67E22,stroke:#D35400,stroke-width:3px,color:#FFF
-    style PKG fill:#2ECC71,stroke:#27AE60,stroke-width:3px,color:#000
-    style VNC fill:#34495E,stroke:#2C3E50,stroke-width:3px,color:#FFF
-    style BROWSER fill:#95A5A6,stroke:#7F8C8D,stroke-width:3px,color:#000
-```
-
-### Technology Stack
-
-**Docker Containers**: Lightweight, portable environments that package your entire development setup (OS, ROS2, Gazebo, dependencies) into a reproducible unit that runs identically everywhere.
-
-**VS Code Dev Containers**: Develop inside a Docker container seamlessly—your code editor, terminal, and debugger work as if running locally.
-
-**ROS2 (Robot Operating System)**: A flexible framework for robot software providing libraries and tools for robot application development.
-
-**Gazebo**: A 3D robot simulator with accurate physics, sensors, and actuator simulation.
-
-**noVNC**: Browser-based VNC client for accessing a full Linux desktop through your web browser without installing additional software.
-
-### Why Use Containers?
-
-1. **Consistency**: Everyone gets the exact same environment
-2. **Isolation**: No conflicts with other software on your system
-3. **Portability**: Works on Windows, Mac, and Linux
-4. **Clean**: Delete the container—your system remains unchanged
-5. **Version Control**: The entire environment is defined in code
-
----
-
-## Prerequisites
-
-### Required Software
-
-- **Docker**:
-  - Windows/Mac: [Docker Desktop](https://www.docker.com/products/docker-desktop/)
-  - Linux: [Docker Engine](https://docs.docker.com/engine/install/)
-- **VS Code**: [Download here](https://code.visualstudio.com/)
-- **Dev Containers Extension**: Install from VS Code Extensions (Ctrl+Shift+X, search "Dev Containers")
-
-<img width="1873" height="1048" alt="Dev Containers Extension" src="https://github.com/user-attachments/assets/3d2e20d6-12ff-445a-b0e6-4445b40ea577" />
-
-### System Requirements
-
-- **Minimum**: 4 CPU cores, 8GB RAM, 20GB free disk space
-- **Recommended**: 6+ CPU cores, 16GB RAM, 50GB free disk space
-- **Operating Systems**:
-  - Windows 10/11 with Docker Desktop
-  - macOS 10.15 or later
-  - Any modern Linux distribution with Docker installed
-
----
-
-## Installation
-
-### Step 1: Install Docker
-
-#### Windows/macOS
-1. Download and install [Docker Desktop](https://www.docker.com/products/docker-desktop/)
-2. Use default settings during installation
-3. Restart your computer after installation
-4. Start Docker Desktop from your applications menu
-5. **Allocate Resources** (Important!):
-   - Open Docker Desktop → Settings → Resources
-   - Set CPUs: 6-8 cores
-   - Set Memory: 12-16 GB
-   - Apply & Restart
-6. Verify installation:
-   ```bash
-   docker --version
-   docker run hello-world
-   ```
-
-#### Linux (Ubuntu/Debian example)
-```bash
-# Install Docker Engine
-curl -fsSL https://get.docker.com -o get-docker.sh
-sudo sh get-docker.sh
-
-# Add user to docker group
-sudo usermod -aG docker $USER
-
-# Log out and back in, then verify
-docker --version
-docker run hello-world
-```
-
-### Step 2: Install VS Code
-
-1. Download VS Code from [code.visualstudio.com](https://code.visualstudio.com/)
-2. Install with default settings
-3. Launch VS Code
-
-### Step 3: Install Dev Containers Extension
-
-1. In VS Code, press `Ctrl+Shift+X` (or `Cmd+Shift+X` on Mac)
-2. Search for "Dev Containers"
-3. Click "Install" on the extension by Microsoft
-
-### Step 4: Clone This Repository
-
-```bash
-git clone https://github.com/prakash-aryan/lecture6-ros2demo.git
-cd lecture6-ros2demo
-```
-
----
-
-## Quick Start
-
-### First Launch (10-15 minutes initial build)
-
-1. **Open in VS Code:**
-   ```bash
-   code .
-   ```
-
-2. **Open in Container:**
-   - VS Code will detect `.devcontainer` and show a popup
-   - Click "Reopen in Container"
-   - OR press `F1` → type "Dev Containers: Reopen in Container"
-
-<img width="589" height="73" alt="Reopen in Container" src="https://github.com/user-attachments/assets/da04714c-19a7-4c40-ab4d-db9ca74156d8" />
-
-3. **Wait for Build:**
-   - First time: 10-15 minutes (downloads and builds everything)
-   - Subsequent launches: 10-30 seconds
-
-4. **Access Gazebo GUI:**
-   - Open browser: http://localhost:6080
-   - Password: `ros`
-   - Wait for desktop to load (~10 seconds)
-
-5. **Launch TurtleBot3:**
-   ```bash
-   # In VS Code terminal
-   tb3_empty
-   ```
-   - Wait 30-60 seconds for Gazebo to fully start
-   - Robot will appear in VNC browser window
-
-### Quick Launch Aliases
-
-Pre-configured shortcuts for common tasks:
-
-```bash
-tb3_empty      # Launch empty world
-tb3_world      # Launch TurtleBot3 world  
-tb3_house      # Launch house world
-tb3_teleop     # Keyboard control
-
-cb             # Build workspace (colcon build)
-sb             # Source workspace
-```
-
----
-
-## Creating Your First ROS2 Package
-
-This section walks you through creating a complete ROS2 package with publisher and subscriber nodes that control TurtleBot3.
-
-### Step 1: Create Package Structure
-
-```bash
-cd /workspace/turtlebot3_ws/src
-
-# Create a new Python package
-ros2 pkg create --build-type ament_python \
-  --node-name my_first_node \
-  demo_nodes
-
-# Verify structure
-cd demo_nodes
-tree
-```
-
-**You'll see:**
-```
-demo_nodes/
-├── demo_nodes/
-│   └── __init__.py
-├── package.xml
-├── setup.py
-├── setup.cfg
-├── resource/
-│   └── demo_nodes
-└── test/
-```
-
-### Step 2: Examine Package Files
-
-**View package.xml** (defines metadata and dependencies):
-```bash
-code package.xml
-```
-
-Key sections:
-- `<name>` - Package identifier (must match folder name)
-- `<version>` - Package version
-- `<maintainer>` - Your name and email
-- `<depend>` - Runtime dependencies
-
-**View setup.py** (defines how Python package installs):
-```bash
-code setup.py
-```
-
-Key section - `entry_points`:
-```python
-'console_scripts': [
-    'my_first_node = demo_nodes.my_first_node:main',
-],
-```
-This makes `ros2 run demo_nodes my_first_node` work!
-
-### Step 3: Create a Publisher Node
-
-Create a new file for your velocity publisher:
-
-```bash
-cd /workspace/turtlebot3_ws/src/demo_nodes/demo_nodes
-code velocity_publisher.py
-```
-
-**Paste this code:**
-
-```python
-#!/usr/bin/env python3
-import rclpy
-from rclpy.node import Node
-from geometry_msgs.msg import Twist
-
-class VelocityPublisher(Node):
-    def __init__(self):
-        super().__init__('velocity_publisher')
-        
-        # Create publisher: message type, topic name, queue size
-        self.publisher = self.create_publisher(
-            Twist,           # Message type
-            '/cmd_vel',      # Topic name
-            10               # Queue size
-        )
-        
-        # Create timer: publish every 0.5 seconds
-        self.timer = self.create_timer(0.5, self.publish_velocity)
-        
-        self.get_logger().info('Velocity Publisher started! Publishing to /cmd_vel')
-    
-    def publish_velocity(self):
-        msg = Twist()
-        msg.linear.x = 0.2   # Move forward at 0.2 m/s
-        msg.angular.z = 0.5  # Turn left at 0.5 rad/s
-        
-        self.publisher.publish(msg)
-        self.get_logger().info(
-            f'Publishing: linear.x={msg.linear.x}, angular.z={msg.angular.z}'
-        )
-
-def main(args=None):
-    rclpy.init(args=args)
-    node = VelocityPublisher()
-    rclpy.spin(node)  # Keep node running
-    rclpy.shutdown()
-
-if __name__ == '__main__':
-    main()
-```
-
-**Key concepts:**
-- `Node` base class provides ROS2 functionality
-- `create_publisher()` sets up communication channel
-- `create_timer()` calls callback at regular intervals
-- `publish()` sends messages to topic
-- `get_logger()` prints to console for debugging
-
-### Step 4: Create a Subscriber Node
-
-Create a new file for odometry subscriber:
-
-```bash
-code odometry_subscriber.py
-```
-
-**Paste this code:**
-
-```python
-#!/usr/bin/env python3
-import rclpy
-from rclpy.node import Node
-from nav_msgs.msg import Odometry
-
-class OdometrySubscriber(Node):
-    def __init__(self):
-        super().__init__('odometry_subscriber')
-        
-        # Create subscriber: message type, topic name, callback function, queue size
-        self.subscription = self.create_subscription(
-            Odometry,               # Message type
-            '/odom',                # Topic name
-            self.odometry_callback, # Callback function
-            10                      # Queue size
-        )
-        
-        self.get_logger().info('Odometry Subscriber started! Listening to /odom')
-    
-    def odometry_callback(self, msg):
-        # Extract position
-        x = msg.pose.pose.position.x
-        y = msg.pose.pose.position.y
-        z = msg.pose.pose.position.z
-        
-        # Extract linear velocity
-        vx = msg.twist.twist.linear.x
-        vz = msg.twist.twist.angular.z
-        
-        self.get_logger().info(
-            f'Position: x={x:.2f}, y={y:.2f} | Velocity: vx={vx:.2f}, vz={vz:.2f}'
-        )
-
-def main(args=None):
-    rclpy.init(args=args)
-    node = OdometrySubscriber()
-    rclpy.spin(node)
-    rclpy.shutdown()
-
-if __name__ == '__main__':
-    main()
-```
-
-**Key concepts:**
-- `create_subscription()` listens to a topic
-- Callback function executes when new message arrives
-- Access message fields with dot notation: `msg.pose.pose.position.x`
-
-### Step 5: Register Nodes in setup.py
-
-Open setup.py in VS Code:
-
-```bash
-cd /workspace/turtlebot3_ws/src/demo_nodes
-code setup.py
-```
-
-**Find the `entry_points` section and update it:**
-
-```python
-entry_points={
-    'console_scripts': [
-        'velocity_publisher = demo_nodes.velocity_publisher:main',
-        'odometry_subscriber = demo_nodes.odometry_subscriber:main',
-    ],
-},
-```
-
-**This registers both nodes so you can run them with:**
-- `ros2 run demo_nodes velocity_publisher`
-- `ros2 run demo_nodes odometry_subscriber`
-
-### Step 6: Add Dependencies to package.xml
-
-Open package.xml:
-
-```bash
-code package.xml
-```
-
-**Add these dependencies before `</package>`:**
-
-```xml
-<depend>rclpy</depend>
-<depend>geometry_msgs</depend>
-<depend>nav_msgs</depend>
-```
-
-**Why?**
-- `rclpy` - Python ROS2 client library
-- `geometry_msgs` - Contains Twist message type
-- `nav_msgs` - Contains Odometry message type
-
-### Step 7: Build Your Package
-
-```bash
-cd /workspace/turtlebot3_ws
-
-# Build only your new package (faster)
-colcon build --packages-select demo_nodes
-
-# Source the workspace (IMPORTANT!)
-source install/setup.bash
-```
-
-**Build output should show:**
-```
-Starting >>> demo_nodes
-Finished <<< demo_nodes [2.5s]
-
-Summary: 1 package finished
-```
-
-### Step 8: Run with TurtleBot3! 🎉
-
-**Terminal 1 - Launch TurtleBot3:**
-```bash
-tb3_empty
-```
-Wait for Gazebo to fully load (30-60 seconds).
-
-**Terminal 2 - Run Publisher:**
-```bash
-# Source workspace first
-source /workspace/turtlebot3_ws/install/setup.bash
-
-# Run the velocity publisher
-ros2 run demo_nodes velocity_publisher
-```
-
-**You'll see:**
-- Log messages showing velocity being published
-- TurtleBot3 moving in circles in Gazebo!
-
-**Terminal 3 - Run Subscriber:**
-```bash
-# Source workspace
-source /workspace/turtlebot3_ws/install/setup.bash
-
-# Run the odometry subscriber
-ros2 run demo_nodes odometry_subscriber
-```
-
-**You'll see:**
-- Robot's position updating
-- Velocity values matching what publisher sends
-
-**Terminal 4 - Inspect Topics:**
-```bash
-# List all topics
-ros2 topic list
-
-# Check who's publishing/subscribing to /cmd_vel
-ros2 topic info /cmd_vel
-
-# Echo messages on /cmd_vel
-ros2 topic echo /cmd_vel
-
-# Check message frequency
-ros2 topic hz /odom
-```
-
-### Understanding What Just Happened
-
-```mermaid
-sequenceDiagram
-    participant VP as Velocity Publisher
-    participant CMD as /cmd_vel Topic
-    participant TB3 as TurtleBot3 Plugin
-    participant ODOM as /odom Topic
-    participant OS as Odometry Subscriber
-    
-    VP->>CMD: Publish Twist(0.2, 0.5)
-    CMD->>TB3: Subscribe to /cmd_vel
-    TB3->>TB3: Move robot in Gazebo
-    TB3->>ODOM: Publish Odometry
-    ODOM->>OS: Subscribe to /odom
-    OS->>OS: Print position & velocity
-    
-    Note over VP,OS: Nodes are decoupled - Communication through topics
-```
-
-**This is ROS2's pub-sub pattern:**
-- Nodes are decoupled (don't know about each other)
-- Communication through topics
-- Multiple subscribers can listen to same topic
-- Publishers don't wait for subscribers
-
----
-
-## Usage
-
-### Common ROS2 Commands
-
-```bash
-# List all topics
-ros2 topic list
-
-# Echo messages from a topic
-ros2 topic echo /cmd_vel
-
-# Get topic info
-ros2 topic info /odom
-
-# Check message frequency
-ros2 topic hz /scan
-
-# List all nodes
-ros2 node list
-
-# Get node info
-ros2 node info /turtlebot3_diff_drive
-
-# List all services
-ros2 service list
-
-# Call a service
-ros2 service call /spawn_entity gazebo_msgs/srv/SpawnEntity "{}"
-
-# List parameters
-ros2 param list
-
-# Get parameter value
-ros2 param get /turtlebot3_diff_drive wheel_separation
-```
-
-### Build System (colcon)
-
-```bash
-# Build all packages
-colcon build
-
-# Build with symlink install (faster for Python development)
-colcon build --symlink-install
-
-# Build specific package
-colcon build --packages-select demo_nodes
-
-# Build up to a package (including dependencies)
-colcon build --packages-up-to demo_nodes
-
-# Build with verbose output
-colcon build --event-handlers console_direct+
-
-# Clean build
-rm -rf build install log
-colcon build --symlink-install
-```
-
-### Keyboard Teleop
-
-Control TurtleBot3 with your keyboard:
-
-```bash
-tb3_teleop
-```
-
-**Controls:**
-```
-Moving around:
-   w
- a s d
-   x
-
-w/x : increase/decrease linear velocity
-a/d : increase/decrease angular velocity
-space/s : force stop
-CTRL-C to quit
-```
-
----
 
 ## Project Structure
 
 ```
-lecture6-ros2-demo/
+lecture6-ros2demo/
 ├── .devcontainer/
-│   ├── Dockerfile               # Container image definition
-│   ├── devcontainer.json        # VS Code configuration
-│   ├── post-create.sh           # Setup script (runs once)
-│   ├── post-start.sh            # Startup script (runs every time)
-│   └── verify-setup.sh          # Verification script
-├── src/                         # Your ROS2 packages go here
-│   └── demo_nodes/              # Example package created above
-├── .gitignore                   # Git ignore rules
-├── .gitattributes               # Git attributes
-├── LICENSE                      # License file
+│   ├── Dockerfile               # ROS 2 Humble container
+│   ├── devcontainer.json        # VS Code Dev Container config
+│   ├── post-create.sh           # One-time setup script
+│   ├── post-start.sh            # Runs each container start
+│   └── verify-setup.sh          # Verifies environment
+├── src/
+│   ├── my_robot_pkg/            # ★ Exercise solution package
+│   │   ├── my_robot_pkg/
+│   │   │   ├── __init__.py
+│   │   │   ├── velocity_publisher.py   # Publishes to /cmd_vel
+│   │   │   └── odom_subscriber.py      # Subscribes to /odom
+│   │   ├── launch/
+│   │   │   └── robot.launch.py         # Launches both nodes
+│   │   ├── resource/
+│   │   │   └── my_robot_pkg
+│   │   ├── package.xml                 # Package metadata & deps
+│   │   ├── setup.py                    # Python package config
+│   │   └── setup.cfg                   # Install behavior
+│   ├── DynamixelSDK/            # Motor control SDK
+│   ├── turtlebot3/              # TurtleBot3 packages
+│   ├── turtlebot3_msgs/         # TurtleBot3 messages
+│   └── turtlebot3_simulations/  # Gazebo simulation
+├── .gitignore
+├── LICENSE
 └── README.md                    # This file
 ```
 
-### ROS2 Workspace Structure
+---
+
+# Exercise: Create a ROS 2 Package for TurtleBot3 Control
+
+## Task 1: Create the Package
+
+### (a) Create Python Package Structure
+
+Navigate to the workspace source directory and create a new ROS 2 Python package:
+
+```bash
+cd /workspace/turtlebot3_ws/src
+
+ros2 pkg create my_robot_pkg \
+  --build-type ament_python \
+  --dependencies rclpy geometry_msgs
+```
 
 ```
-/workspace/turtlebot3_ws/
-├── src/              # Source code (you work here)
-│   ├── turtlebot3/           # TurtleBot3 packages
-│   ├── turtlebot3_msgs/      # TurtleBot3 messages
-│   ├── turtlebot3_simulations/  # Gazebo simulation
-│   └── demo_nodes/           # Your custom packages
-├── build/            # Build artifacts (auto-generated)
-├── install/          # Installed binaries (auto-generated)
-└── log/              # Build logs (auto-generated)
+going to create a new package
+package name: my_robot_pkg
+destination directory: /workspace/turtlebot3_ws/src
+package format: 3
+version: 0.0.0
+description: TODO: Package description
+maintainer: ['root <root@todo.todo>']
+licenses: ['TODO: License declaration']
+build type: ament_python
+dependencies: ['rclpy', 'geometry_msgs']
+creating folder ./my_robot_pkg
+creating ./my_robot_pkg/package.xml
+creating source folder
+creating folder ./my_robot_pkg/my_robot_pkg
+creating ./my_robot_pkg/setup.py
+creating ./my_robot_pkg/setup.cfg
+creating ./my_robot_pkg/my_robot_pkg/__init__.py
+creating folder ./my_robot_pkg/resource
+creating ./my_robot_pkg/resource/my_robot_pkg
+creating folder ./my_robot_pkg/test
 ```
+
+Verify the package structure:
+
+```bash
+ls my_robot_pkg/
+```
+
+```
+my_robot_pkg/  package.xml  resource/  setup.cfg  setup.py  test/
+```
+
+### (b) Write the Velocity Publisher Node
+
+Create `my_robot_pkg/my_robot_pkg/velocity_publisher.py`:
+
+```python
+import rclpy
+from rclpy.node import Node
+from geometry_msgs.msg import Twist
+
+
+class VelocityPublisher(Node):
+    def __init__(self):
+        super().__init__('velocity_publisher')
+        self.publisher = self.create_publisher(
+            Twist,
+            '/cmd_vel',
+            10)
+        self.timer = self.create_timer(
+            0.5,  # 2 Hz
+            self.timer_callback)
+        self.get_logger().info('Publishing velocity commands')
+
+    def timer_callback(self):
+        msg = Twist()
+        msg.linear.x = 0.5   # m/s forward
+        msg.angular.z = 0.1  # rad/s turn
+        self.publisher.publish(msg)
+        self.get_logger().info(
+            f'Publishing: linear.x={msg.linear.x:.1f}, angular.z={msg.angular.z:.1f}')
+
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = VelocityPublisher()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+```
+
+**Key concepts:**
+- Inherits from `Node` base class — provides all ROS 2 functionality
+- `create_publisher(Twist, '/cmd_vel', 10)` — publishes Twist messages to `/cmd_vel` with QoS depth of 10
+- `create_timer(0.5, callback)` — calls `timer_callback` at 2 Hz (every 0.5s)
+- `Twist` message has `linear.x` (forward speed) and `angular.z` (turn rate)
+
+### (c) Write the Odometry Subscriber Node
+
+Create `my_robot_pkg/my_robot_pkg/odom_subscriber.py`:
+
+```python
+import rclpy
+from rclpy.node import Node
+from nav_msgs.msg import Odometry
+
+
+class OdometrySubscriber(Node):
+    def __init__(self):
+        super().__init__('odom_subscriber')
+        self.subscription = self.create_subscription(
+            Odometry,
+            '/odom',
+            self.odom_callback,
+            10)
+        self.get_logger().info('Listening to odometry')
+
+    def odom_callback(self, msg):
+        pos = msg.pose.pose.position
+        self.get_logger().info(
+            f'Robot at x={pos.x:.2f}, y={pos.y:.2f}')
+
+        if pos.x > 5.0:
+            self.get_logger().warn('Robot too far!')
+
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = OdometrySubscriber()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
+```
+
+**Key concepts:**
+- `create_subscription(Odometry, '/odom', callback, 10)` — listens to `/odom` topic
+- Callback fires each time a new Odometry message arrives
+- `msg.pose.pose.position` extracts the robot's (x, y) position from the message
+- Data processing: warns if robot exceeds x > 5.0 meters
 
 ---
 
-## Configuration
+## Task 2: Configure and Build the Package
 
-### Environment Variables
+### (a) Configure package.xml
 
-Automatically set in the container:
+Update `package.xml` with metadata and dependencies:
 
-```bash
-ROS_DISTRO=humble                       # ROS2 version
-ROS_DOMAIN_ID=30                        # Network isolation
-TURTLEBOT3_MODEL=burger                 # Robot model
-RMW_IMPLEMENTATION=rmw_cyclonedds_cpp   # DDS implementation
-DISPLAY=:1                              # VNC display
-QT_QPA_PLATFORM=xcb                     # Qt platform
-GAZEBO_MODEL_PATH=/usr/share/gazebo-11/models  # Local models only
-GAZEBO_MODEL_DATABASE_URI=""            # Disable internet downloads
+```xml
+<?xml version="1.0"?>
+<package format="3">
+  <name>my_robot_pkg</name>
+  <version>0.1.0</version>
+  <description>Robot control package for TurtleBot3</description>
+  <maintainer email="prakash.aryan@students.unibe.ch">Prakash Aryan</maintainer>
+  <license>MIT</license>
+
+  <depend>rclpy</depend>
+  <depend>geometry_msgs</depend>
+
+  <exec_depend>nav_msgs</exec_depend>
+
+  <test_depend>pytest</test_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
 ```
 
-### Changing Robot Model
+**Dependency types:**
+- `<depend>` — needed at both build and runtime (rclpy, geometry_msgs)
+- `<exec_depend>` — needed only at runtime (nav_msgs for Odometry)
+- `<test_depend>` — needed only for tests (pytest)
 
-Edit `.devcontainer/devcontainer.json`:
-```json
-"remoteEnv": {
-  "TURTLEBOT3_MODEL": "waffle"  // Options: burger, waffle, waffle_pi
-}
+### (b) Configure setup.py
+
+Register both nodes as console scripts in `setup.py`:
+
+```python
+from setuptools import setup
+import os
+from glob import glob
+
+package_name = 'my_robot_pkg'
+
+setup(
+    name=package_name,
+    version='0.1.0',
+    packages=[package_name],
+    data_files=[
+        ('share/ament_index/resource_index/packages',
+            ['resource/' + package_name]),
+        ('share/' + package_name, ['package.xml']),
+        (os.path.join('share', package_name, 'launch'),
+            glob('launch/*.launch.py')),
+    ],
+    install_requires=['setuptools'],
+    zip_safe=True,
+    maintainer='Prakash Aryan',
+    maintainer_email='prakash.aryan@students.unibe.ch',
+    description='Robot control package for TurtleBot3',
+    license='MIT',
+    tests_require=['pytest'],
+    entry_points={
+        'console_scripts': [
+            'velocity_publisher = my_robot_pkg.velocity_publisher:main',
+            'odom_subscriber = my_robot_pkg.odom_subscriber:main',
+        ],
+    },
+)
 ```
-Rebuild container: F1 → "Dev Containers: Rebuild Container"
 
----
+**Entry points mapping:**
+```
+Command line:        $ ros2 run my_robot_pkg velocity_publisher
+Maps to:             my_robot_pkg/velocity_publisher.py → main()
 
-## Troubleshooting
+Command line:        $ ros2 run my_robot_pkg odom_subscriber
+Maps to:             my_robot_pkg/odom_subscriber.py → main()
+```
 
-### Gazebo Takes Too Long to Start
+**`data_files`** also installs launch files from the `launch/` directory so `ros2 launch` can find them.
 
-**Solution**: The environment variables are already configured to prevent internet model downloads. If it still takes long:
+### (c) Build the Package
 
-1. **Increase Docker Resources:**
-   - Docker Desktop → Settings → Resources
-   - CPUs: 6-8 cores
-   - Memory: 12-16 GB
-
-2. **Check if variables are set:**
-   ```bash
-   echo $GAZEBO_MODEL_PATH
-   echo $GAZEBO_MODEL_DATABASE_URI
-   ```
-
-### Robot Doesn't Spawn
-
-**Symptoms:**
-- `spawn_entity` timeout error after 30 seconds
-- Gazebo launches but robot doesn't appear
-
-**Solution:**
-Gazebo server takes time to initialize. Be patient and wait the full 60 seconds.
-
-### Build Fails
-
-**Solution:**
 ```bash
-# Clean and rebuild
 cd /workspace/turtlebot3_ws
-rm -rf build install log
-colcon build --symlink-install
 
-# Check for missing dependencies
-rosdep install --from-paths src --ignore-src -y
+# Build only our package
+colcon build --packages-select my_robot_pkg
 ```
 
-### Can't Access VNC
+```
+Starting >>> my_robot_pkg
+Finished <<< my_robot_pkg [1.2s]
 
-**Solution:**
-1. Check Port Forwarding in VS Code:
-   - View → Ports
-   - Port 6080 should be listed
+Summary: 1 package finished [1.8s]
+```
 
-2. Try direct link: http://localhost:6080
-
-3. Restart desktop-lite:
-   ```bash
-   sudo supervisorctl restart desktop-lite
-   ```
-
-### Package Not Found After Building
-
-**Symptoms:**
-- `Package 'demo_nodes' not found` after building
-
-**Solution:**
 ```bash
-# Always source after building
-source /workspace/turtlebot3_ws/install/setup.bash
+# Source the workspace — REQUIRED after every build
+source install/setup.bash
+```
 
-# Or use the alias
-sb
+### (d) Run the Nodes
+
+**Terminal 1 — Launch TurtleBot3 in Gazebo:**
+
+```bash
+ros2 launch turtlebot3_gazebo turtlebot3_world.launch.py
+```
+
+Wait 30–60 seconds for Gazebo to fully load.
+
+**Terminal 2 — Run the velocity publisher:**
+
+```bash
+source install/setup.bash
+ros2 run my_robot_pkg velocity_publisher
+```
+
+```
+[INFO] [velocity_publisher]: Publishing velocity commands
+[INFO] [velocity_publisher]: Publishing: linear.x=0.5, angular.z=0.1
+[INFO] [velocity_publisher]: Publishing: linear.x=0.5, angular.z=0.1
+[INFO] [velocity_publisher]: Publishing: linear.x=0.5, angular.z=0.1
+```
+
+The TurtleBot3 starts moving forward with a slight left turn in Gazebo.
+
+**Terminal 3 — Run the odometry subscriber:**
+
+```bash
+source install/setup.bash
+ros2 run my_robot_pkg odom_subscriber
+```
+
+```
+[INFO] [odom_subscriber]: Listening to odometry
+[INFO] [odom_subscriber]: Robot at x=0.52, y=0.01
+[INFO] [odom_subscriber]: Robot at x=1.05, y=0.04
+[INFO] [odom_subscriber]: Robot at x=1.57, y=0.09
 ```
 
 ---
 
-## Learning Resources
+## Task 3: Launch File and Debugging
 
-### Official Documentation
-- [ROS2 Humble Documentation](https://docs.ros.org/en/humble/)
-- [TurtleBot3 Manual](https://emanual.robotis.com/docs/en/platform/turtlebot3/overview/)
-- [Gazebo Classic Documentation](http://classic.gazebosim.org/)
-- [colcon Documentation](https://colcon.readthedocs.io/)
+### (a) Create a Launch File
 
-### Tutorials
-- [ROS2 Tutorials](https://docs.ros.org/en/humble/Tutorials.html)
-- [Creating a ROS2 Package](https://docs.ros.org/en/humble/Tutorials/Beginner-Client-Libraries/Creating-Your-First-ROS2-Package.html)
-- [Writing Publisher/Subscriber (Python)](https://docs.ros.org/en/humble/Tutorials/Beginner-Client-Libraries/Writing-A-Simple-Py-Publisher-And-Subscriber.html)
+Create `launch/robot.launch.py` to start both nodes with a single command:
+
+```python
+from launch import LaunchDescription
+from launch_ros.actions import Node
+
+
+def generate_launch_description():
+    return LaunchDescription([
+        Node(
+            package='my_robot_pkg',
+            executable='velocity_publisher',
+            name='velocity_publisher',
+            output='screen',
+        ),
+        Node(
+            package='my_robot_pkg',
+            executable='odom_subscriber',
+            name='odom_subscriber',
+            output='screen',
+        ),
+    ])
+```
+
+**Run with launch file (starts both nodes at once):**
+
+```bash
+# Rebuild to pick up the launch file
+colcon build --packages-select my_robot_pkg
+source install/setup.bash
+
+# Launch both nodes
+ros2 launch my_robot_pkg robot.launch.py
+```
+
+```
+[INFO] [launch]: All log files can be found below /root/.ros/log/...
+[INFO] [launch]: Default logging verbosity is set to INFO
+[INFO] [velocity_publisher-1]: process started with pid [12345]
+[INFO] [odom_subscriber-2]: process started with pid [12346]
+[velocity_publisher-1] [INFO] [velocity_publisher]: Publishing velocity commands
+[odom_subscriber-2] [INFO] [odom_subscriber]: Listening to odometry
+[velocity_publisher-1] [INFO] [velocity_publisher]: Publishing: linear.x=0.5, angular.z=0.1
+[odom_subscriber-2] [INFO] [odom_subscriber]: Robot at x=0.52, y=0.01
+```
+
+### (b) Debugging with ROS 2 Tools
+
+**List all active nodes:**
+
+```bash
+$ ros2 node list
+/velocity_publisher
+/odom_subscriber
+/turtlebot3_diff_drive
+/turtlebot3_imu
+/turtlebot3_joint_state
+/turtlebot3_laserscan
+```
+
+**List all active topics:**
+
+```bash
+$ ros2 topic list
+/cmd_vel
+/odom
+/scan
+/tf
+/tf_static
+/clock
+/joint_states
+/robot_description
+```
+
+**Inspect `/cmd_vel` topic:**
+
+```bash
+$ ros2 topic info /cmd_vel
+Type: geometry_msgs/msg/Twist
+Publisher count: 1
+Subscription count: 1
+
+$ ros2 topic echo /cmd_vel
+linear:
+  x: 0.5
+  y: 0.0
+  z: 0.0
+angular:
+  x: 0.0
+  y: 0.0
+  z: 0.1
+```
+
+**Check publishing frequency:**
+
+```bash
+$ ros2 topic hz /cmd_vel
+average rate: 2.001
+	min: 0.499s max: 0.501s std dev: 0.00050s window: 10
+```
+
+Confirms our publisher is running at the expected 2 Hz.
+
+**Visualize the computation graph:**
+
+```bash
+$ rqt_graph
+```
+
+This opens a visual graph showing how `velocity_publisher` → `/cmd_vel` → `turtlebot3_diff_drive` and `turtlebot3_diff_drive` → `/odom` → `odom_subscriber` are connected.
+
+### (c) TurtleBot3 Integration Diagram
+
+```mermaid
+sequenceDiagram
+    participant VP as velocity_publisher
+    participant CMD as /cmd_vel
+    participant TB3 as TurtleBot3 (Gazebo)
+    participant ODOM as /odom
+    participant OS as odom_subscriber
+
+    loop Every 0.5s (2 Hz)
+        VP->>CMD: Twist(linear.x=0.5, angular.z=0.1)
+        CMD->>TB3: Deliver velocity command
+        TB3->>TB3: Simulate physics & movement
+        TB3->>ODOM: Odometry(pose, twist)
+        ODOM->>OS: Deliver odometry data
+        OS->>OS: Log position (x, y)
+    end
+```
+
+**How it works end-to-end:**
+
+1. `velocity_publisher` publishes `Twist` messages to `/cmd_vel` at 2 Hz
+2. TurtleBot3's Gazebo plugin subscribes to `/cmd_vel` and moves the simulated robot
+3. Gazebo computes the new robot position using its physics engine
+4. TurtleBot3 publishes its updated position as `Odometry` messages on `/odom`
+5. `odom_subscriber` receives the position data and logs it to the console
+
+The nodes are fully **decoupled** — the publisher doesn't know about the subscriber. They communicate entirely through ROS 2 topics via the DDS middleware layer.
 
 ---
 
-## License
+## Summary: What Was Built
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+| Component | File | Purpose |
+|---|---|---|
+| Publisher node | `velocity_publisher.py` | Sends `Twist` velocity commands to `/cmd_vel` at 2 Hz |
+| Subscriber node | `odom_subscriber.py` | Listens to `/odom` and logs robot position |
+| Launch file | `robot.launch.py` | Starts both nodes with a single command |
+| Package config | `package.xml` | Declares dependencies (rclpy, geometry_msgs, nav_msgs) |
+
+| Build config | `setup.py` | Registers entry points and installs launch files |
+| Install config | `setup.cfg` | Tells colcon where to install scripts |
+
+**ROS 2 concepts demonstrated:**
+- **Nodes**: Independent processes (velocity_publisher, odom_subscriber)
+- **Topics**: Named communication channels (/cmd_vel, /odom)
+- **Publishers**: Send messages to topics
+- **Subscribers**: Receive messages from topics (callback-driven)
+- **Messages**: Typed data structures (Twist, Odometry)
+- **Launch files**: Orchestrate multiple nodes
+- **colcon**: Build system for ROS 2 workspaces
 
 ---
 
-## Acknowledgments
-
-- Based on ROBOTIS TurtleBot3 packages
-- Uses osrf/ros Docker images
-- Built for DevOps for Cyber-Physical Systems course at University of Bern
+**University of Bern | DevOps for Cyber-Physical Systems**
