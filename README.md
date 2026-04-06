@@ -11,19 +11,19 @@
 ```mermaid
 flowchart LR
     subgraph "Gazebo Simulation"
-        IMU[/turtlebot3_imu]
-        JS[/turtlebot3_joint_state]
-        DD[/turtlebot3_diff_drive]
-        LS[/turtlebot3_laserscan]
-        GZ[/gazebo]
+        IMU["/turtlebot3_imu"]
+        JS["/turtlebot3_joint_state"]
+        DD["/turtlebot3_diff_drive"]
+        LS["/turtlebot3_laserscan"]
+        GZ["/gazebo"]
     end
 
     subgraph "Student Nodes"
-        CM[/circle_motion]
-        OM[/odom_monitor]
+        CM["/circle_motion"]
+        OM["/odom_monitor"]
     end
 
-    RSP[/robot_state_publisher]
+    RSP["/robot_state_publisher"]
 
     CM -- /cmd_vel --> DD
     DD -- /odom --> OM
