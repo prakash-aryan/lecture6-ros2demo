@@ -10,7 +10,7 @@
 
 ```mermaid
 flowchart LR
-    subgraph Gazebo Simulation
+    subgraph "Gazebo Simulation"
         IMU[/turtlebot3_imu]
         JS[/turtlebot3_joint_state]
         DD[/turtlebot3_diff_drive]
@@ -18,7 +18,7 @@ flowchart LR
         GZ[/gazebo]
     end
 
-    subgraph Student Nodes
+    subgraph "Student Nodes"
         CM[/circle_motion]
         OM[/odom_monitor]
     end
